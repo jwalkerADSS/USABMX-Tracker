@@ -30,7 +30,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                     <Link href={`/riders/${r.profileId}`}>
                       <strong>{r.name}</strong>
                       <span className="muted small">
-                        {[r.ageGroup, r.district, best ? `${best.table === 'national' ? 'National' : best.district} #${num(best.place)}` : null]
+                        {[r.ageGroup, r.district, best ? `${best.table === 'national' ? 'National' : 'District'} #${num(best.place)}` : null]
                           .filter(Boolean).join(' · ')}
                       </span>
                     </Link>

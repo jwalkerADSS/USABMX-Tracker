@@ -9,3 +9,5 @@ export function formatDate(iso: string): string {
 }
 
 export const num = (n: number) => n.toLocaleString('en-US');
+
+export const pts = (n: number) => `${num(n)} ${n === 1 ? 'pt' : 'pts'}`;

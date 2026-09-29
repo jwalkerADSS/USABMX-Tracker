@@ -1,5 +1,5 @@
 import type { Points } from '@/lib/usabmx';
-import { num } from '@/lib/format';
+import { num, pts } from '@/lib/format';
 
 const SHORT: Record<string, string> = { District: 'District', 'U.S. N.A.G.': 'NAG', 'U.S. National': 'National' };
 const short = (type: string) => SHORT[type] ?? (type.startsWith('State') ? 'State' : type);
@@ -13,7 +13,7 @@ export function RankRow({ points }: { points: Points }) {
         <div key={p.type} className="rank">
           <span className="rank-label">{short(p.type)}</span>
           <span className="rank-place">#{num(p.rank)}</span>
-          <span className="rank-points">{num(p.points)} pts</span>
+          <span className="rank-points">{pts(p.points)}</span>
         </div>
       ))}
     </div>

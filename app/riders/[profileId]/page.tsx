@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked } from '@/lib/riders';
-import { formatDate, num, ordinal } from '@/lib/format';
+import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
@@ -116,11 +116,11 @@ function StandingItem({ s }: { s: Standing | null }) {
     <li>
       <div className="standing-head">
         <strong>{s.label}</strong>
-        {s.found ? <span>#{num(s.place!)} · {num(s.points!)} pts</span> : <span className="muted">Not ranked</span>}
+        {s.found ? <span>#{num(s.place!)} · {pts(s.points!)}</span> : <span className="muted">Not ranked</span>}
       </div>
       {s.gaps.map(g => (
         <p key={g.place} className="gap">
-          {g.pointsBehind === 0 ? `Tied with #${g.place}` : `${num(g.pointsBehind)} pts behind #${g.place}`}{' '}
+          {g.pointsBehind === 0 ? `Tied with #${g.place}` : `${pts(g.pointsBehind)} behind #${g.place}`}{' '}
           <span className="muted">({g.name}, {num(g.points)})</span>
         </p>
       ))}

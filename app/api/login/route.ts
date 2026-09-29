@@ -6,7 +6,8 @@ export async function POST(req: NextRequest) {
   const email = String(form.get('email') ?? '');
   const password = String(form.get('password') ?? '');
   const next = String(form.get('next') ?? '/');
-  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  // Only same-site paths. Browsers read a backslash as a slash, so "/\evil.com" would leave the site.
+  const safeNext = next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/';
 
   if (!checkCredentials(email, password)) {
     const back = new URL('/login', req.url);
