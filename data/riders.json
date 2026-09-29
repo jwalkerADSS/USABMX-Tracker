@@ -1,0 +1,55 @@
+[
+  {
+    "name": "Jameson Walker",
+    "memberId": 405896,
+    "profileId": 188256,
+    "altProfileIds": [
+      65441
+    ],
+    "tables": {
+      "district": {
+        "district": "NV01",
+        "class": "Boys"
+      },
+      "state": {
+        "state": "NV",
+        "ageGroup": "10 Nov/Inter"
+      },
+      "goldCup": {
+        "region": "South West",
+        "ageGroup": "10 Intermediate"
+      },
+      "nag": {
+        "ageGroup": "10 Boys"
+      },
+      "national": {
+        "pointClass": "Boys"
+      }
+    }
+  },
+  {
+    "name": "Jordyn Walker",
+    "memberId": 470780,
+    "profileId": 179850,
+    "tables": {
+      "district": {
+        "district": "NV01",
+        "class": "Girls"
+      },
+      "state": {
+        "state": "NV",
+        "ageGroup": "7 Nov/Inter"
+      },
+      "goldCup": {
+        "region": "South West",
+        "ageGroup": "7 Intermediate"
+      },
+      "nag": {
+        "ageGroup": "7 Girls"
+      },
+      "national": {
+        "pointClass": "Girls"
+      }
+    }
+  }
+]

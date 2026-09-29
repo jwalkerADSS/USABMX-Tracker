@@ -1,0 +1,16 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+
+export async function middleware(req: NextRequest) {
+  const email = await verifySession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  if (email) return NextResponse.next();
+  const url = req.nextUrl.clone();
+  url.pathname = '/login';
+  url.search = req.nextUrl.pathname === '/' ? '' : `?next=${encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search)}`;
+  return NextResponse.redirect(url);
+}
+
+export const config = {
+  // Everything except the sign-in page, its API, and the files a phone needs to install the app.
+  matcher: ['/((?!login|api/login|_next/|manifest.webmanifest|icons/|favicon.ico|apple-touch-icon.png).*)'],
+};
