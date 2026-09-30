@@ -60,9 +60,36 @@ export function raceLabel(raceName: string, short = false): string {
 
 export type RacePoints = { district: number; state?: number; goldCup?: number };
 
-export function racePoints(race: Race): RacePoints | null {
-  const s = skill(race.level);
-  if (!s) return null;
+const RANK: Record<Skill, number> = { Novice: 0, Inter: 1, Expert: 2 };
+
+// Race history labels each race with its moto's level, which is the highest level riding in it, so a Novice
+// racing Inters already shows as Inter (rulebook VII.8). But riders always score at least their own level:
+// an Expert combined into an Inter moto still gets Expert points (VII.9). History doesn't record a rider's
+// level at the time, so a lower-labelled race counts at the rider's current level only when it's a one-off
+// inside their final run at that level: the race before it and every race after it are at that level or above.
+// Checked on NV01 in September 2026, this fixed one rider's total and changed no other.
+export function raisedRaces(races: Race[], currentLevel: string | null): Set<Race> {
+  const cur = currentLevel ? skill(currentLevel) : null;
+  const raised = new Set<Race>();
+  if (!cur) return raised;
+  const atLevel = (r: Race) => RANK[skill(r.level) ?? 'Novice'] >= RANK[cur];
+  const rs = races.filter(r => skill(r.level) && r.bike === 'class').sort((a, b) => a.date.localeCompare(b.date));
+  let inRun = false;
+  rs.forEach((r, i) => {
+    if (atLevel(r)) return void (inRun = true);
+    const later = rs.slice(i + 1);
+    if (inRun && i > 0 && atLevel(rs[i - 1]) && later.length && later.every(atLevel)) raised.add(r);
+    else inRun = false;
+  });
+  return raised;
+}
+
+// ownLevel: the rider's level when it's higher than the race's label (see raisedRaces).
+export function racePoints(race: Race, ownLevel?: string | null): RacePoints | null {
+  const label = skill(race.level);
+  if (!label) return null;
+  const own = ownLevel ? skill(ownLevel) : null;
+  const s = own && RANK[own] > RANK[label] ? own : label;
   const inMain = race.finish >= 1 && race.finish <= 8;
   const m = multiplier(race.raceType);
   // Finish points plus one point for every rider in the class, all times the race's multiplier.

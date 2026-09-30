@@ -8,7 +8,7 @@ import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
-import { raceLabel, racePoints } from '@/lib/points';
+import { raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 
 export const maxDuration = 60;
@@ -36,6 +36,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
 
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
   const last5 = races.slice(0, 5);
+  // Only this season's races can be compared with the rider's current level.
+  const raised = year === currentSeason() ? raisedRaces(races, profile.level) : new Set<Race>();
   const [standings, fields] = await Promise.all([
     tracked
       ? Promise.all((Object.keys(LEVEL_LABELS) as Level[]).map(level =>
@@ -131,7 +133,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           <h2>Last {last5.length} races</h2>
           {last5.length ? (
             <ul className="races">
-              {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} />)}
+              {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} />)}
             </ul>
           ) : (
             <p className="muted">No races in {year} yet.</p>
@@ -184,9 +186,9 @@ function StandingItem({ s }: { s: Standing | null }) {
   );
 }
 
-function RaceItem({ race, field }: { race: Race; field: RaceField }) {
+function RaceItem({ race, field, ownLevel }: { race: Race; field: RaceField; ownLevel: string | null }) {
   const opponents = field.field?.filter(f => !f.self) ?? [];
-  const points = racePoints(race);
+  const points = racePoints(race, ownLevel);
   return (
     <li>
       <div className="race-head">
@@ -199,6 +201,7 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           </div>
           <p className="muted small">
             {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {ownLevel ? ` · ${ownLevel} points (rider’s own level)` : ''}
           </p>
           {points && (points.state != null || points.goldCup != null) ? (
             <p className="muted small">
