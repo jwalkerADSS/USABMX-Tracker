@@ -1,21 +1,33 @@
-import type { Points } from '@/lib/usabmx';
+import Link from 'next/link';
+import { levelOfPointsType, type Points, type Standing } from '@/lib/usabmx';
 import { num, pts } from '@/lib/format';
 
 const SHORT: Record<string, string> = { District: 'District', 'U.S. N.A.G.': 'NAG', 'U.S. National': 'National' };
 const short = (type: string) => SHORT[type] ?? (type.startsWith('State') ? 'State' : type);
 
-// Rank and points at each level, as USA BMX reports them on the rider's profile.
-export function RankRow({ points }: { points: Points }) {
-  if (!points.class.length) return <p className="muted small">No points yet this season.</p>;
+// Rank and points at each level, as USA BMX reports them on the rider's profile. For tracked riders
+// (profileId set) each tile opens the full standings table with the rider highlighted.
+export function RankRow({ points, profileId, goldCup }: { points: Points; profileId?: number; goldCup?: Standing | null }) {
+  if (!points.class.length && !goldCup) return <p className="muted small">No points yet this season.</p>;
+  const link = (level: string | null) => (profileId && level ? `/standings/${level}?rider=${profileId}#me` : null);
+  const tiles = points.class.map(p => ({ key: p.type, label: short(p.type), place: `#${num(p.rank)}`, sub: pts(p.points), href: link(levelOfPointsType(p.type)) }));
+  // USA BMX doesn't include Gold Cup in a rider's points, so it comes from the Gold Cup table itself.
+  if (goldCup) {
+    const gc = { key: 'goldCup', label: 'Gold Cup', place: goldCup.found ? `#${num(goldCup.place!)}` : '–', sub: goldCup.found ? pts(goldCup.points!) : 'Not ranked', href: link('goldCup') };
+    tiles.splice(Math.min(2, tiles.length), 0, gc);
+  }
   return (
     <div className="ranks">
-      {points.class.map(p => (
-        <div key={p.type} className="rank">
-          <span className="rank-label">{short(p.type)}</span>
-          <span className="rank-place">#{num(p.rank)}</span>
-          <span className="rank-points">{pts(p.points)}</span>
-        </div>
-      ))}
+      {tiles.map(t => {
+        const body = (
+          <>
+            <span className="rank-label">{t.label}</span>
+            <span className="rank-place">{t.place}</span>
+            <span className="rank-points">{t.sub}</span>
+          </>
+        );
+        return t.href ? <Link key={t.key} href={t.href} className="rank rank-link">{body}</Link> : <div key={t.key} className="rank">{body}</div>;
+      })}
     </div>
   );
 }

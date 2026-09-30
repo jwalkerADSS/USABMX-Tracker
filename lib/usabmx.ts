@@ -290,6 +290,48 @@ export async function getStanding(level: Level, tables: Tables, year: number, ri
   return { ...base, found: true, place: me.place, points: me.points, gaps };
 }
 
+// ---- Full standings tables ------------------------------------------------------
+
+export type TableRow = { place: number; name: string; profileId: number | null; memberId: number | null; ageGroup: string | null; points: number };
+export type StandingsTable = { level: Level; title: string; url: string; page: number; lastPage: number; rows: TableRow[] };
+
+export function tableTitle(level: Level, t: Tables): string | null {
+  switch (level) {
+    case 'district': return t.district ? `${t.district.district} ${t.district.class} district` : null;
+    case 'state': return t.state ? `${t.state.state} state · ${t.state.ageGroup}` : null;
+    case 'goldCup': return t.goldCup ? `${t.goldCup.region} Gold Cup · ${t.goldCup.ageGroup}` : null;
+    case 'nag': return t.nag ? `NAG · ${t.nag.ageGroup}` : null;
+    case 'national': return t.national ? `National · ${t.national.pointClass}` : null;
+  }
+}
+
+export async function getStandingsTable(level: Level, tables: Tables, year: number, page: number): Promise<StandingsTable | null> {
+  const path = tableUrl(level, tables, year);
+  const title = tableTitle(level, tables);
+  if (!path || !title) return null;
+  const { rows, lastPage } = await standingsPage(path, page);
+  return {
+    level, title, url: BASE + path + (page > 1 ? `&page=${page}` : ''), page, lastPage: Math.max(lastPage, 1),
+    rows: rows.map(r => ({
+      place: r.place, name: titleCase(`${r.rider.first_name} ${r.rider.last_name}`), profileId: r.rider.profile_id,
+      memberId: r.bmxMemberId ?? null, ageGroup: r.age_group ?? null, points: r.points,
+    })),
+  };
+}
+
+// The page a rider is most likely on, from the rank USA BMX reports for them.
+export function rankPage(rank: number | undefined): number {
+  return rank ? Math.max(1, Math.ceil(rank / PER_PAGE)) : 1;
+}
+
+// Which my-points row belongs to which table.
+export function levelOfPointsType(type: string): Level | null {
+  for (const [level, prefix] of Object.entries(MY_POINTS_TYPE) as [Level, string | null][]) {
+    if (prefix && type.startsWith(prefix)) return level;
+  }
+  return null;
+}
+
 // ---- District plates ---------------------------------------------------------
 
 export const DISTRICT_CLASSES = ['Boys', 'Girls', 'Cruiser', 'Girl Cruiser'] as const;
