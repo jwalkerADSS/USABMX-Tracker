@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { InstallApp } from './install-app';
 
 export const metadata: Metadata = {
   title: { default: 'BMX Tracker', template: '%s · BMX Tracker' },
@@ -17,10 +18,18 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+// Caught before the page's scripts load, since Chrome can offer the install prompt early (see install-app.tsx).
+const CATCH_INSTALL_PROMPT =
+  "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__installPrompt=e;});";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: CATCH_INSTALL_PROMPT }} />
+        {children}
+        <InstallApp />
+      </body>
     </html>
   );
 }
