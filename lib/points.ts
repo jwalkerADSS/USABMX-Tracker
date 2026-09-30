@@ -58,16 +58,20 @@ export function raceLabel(raceName: string, short = false): string {
   return `${name} · ${short ? `${m}x` : `${MULTIPLIER_LABELS[m]} points`}`;
 }
 
-export type RacePoints = { district: number; state?: number; goldCup?: number };
+export type RacePoints = { district: number; state?: number; goldCup?: number; level: Skill };
 
 const RANK: Record<Skill, number> = { Novice: 0, Inter: 1, Expert: 2 };
 
-// Race history labels each race with its moto's level, which is the highest level riding in it, so a Novice
-// racing Inters already shows as Inter (rulebook VII.8). But riders always score at least their own level:
-// an Expert combined into an Inter moto still gets Expert points (VII.9). History doesn't record a rider's
-// level at the time, so a lower-labelled race counts at the rider's current level only when it's a one-off
-// inside their final run at that level: the race before it and every race after it are at that level or above.
-// Checked on NV01 in September 2026, this fixed one rider's total and changed no other.
+export function higherLevel(a: string | null | undefined, b: string | null | undefined): boolean {
+  const sa = a ? skill(a) : null, sb = b ? skill(b) : null;
+  return !!sa && (!sb || RANK[sa] > RANK[sb]);
+}
+
+// A race history row can't show a rider's own level, only the moto's label, and riders always score at least
+// their own level: an Expert combined into an Inter moto still gets Expert points (rulebook VII.9). History doesn't
+// record a rider's level at the time, so a lower-labelled race counts at the rider's current level only when it's
+// a one-off inside their final run at that level: the race before it and every race after it are at that level
+// or above. Checked on NV01 in September 2026, this fixed one rider's total and changed no other.
 export function raisedRaces(races: Race[], currentLevel: string | null): Set<Race> {
   const cur = currentLevel ? skill(currentLevel) : null;
   const raised = new Set<Race>();
@@ -84,16 +88,23 @@ export function raisedRaces(races: Race[], currentLevel: string | null): Set<Rac
   return raised;
 }
 
-// ownLevel: the rider's level when it's higher than the race's label (see raisedRaces).
-export function racePoints(race: Race, ownLevel?: string | null): RacePoints | null {
-  const label = skill(race.level);
-  if (!label) return null;
-  const own = ownLevel ? skill(ownLevel) : null;
-  const s = own && RANK[own] > RANK[label] ? own : label;
+// A moto pays everyone in it at the level of its highest rider, whatever its label says: a Novice moto with an
+// Inter in it pays Inter points, and an Inter moto with an Expert or Girl Expert in it pays Expert points. The
+// label usually already names the highest level, but not always, so atLeast takes the levels of the riders in
+// the moto (and the rider's own level) and the race scores at the highest of those and the label.
+// Checked in September 2026 against official totals of NV riders with no national points: Owen Gamboa and
+// Lucas Mendoza matched exactly once Experts and Girl Experts lifted their Inter motos.
+export function racePoints(race: Race, atLeast: (string | null | undefined)[] = []): RacePoints | null {
+  let s = skill(race.level);
+  if (!s) return null;
+  for (const l of atLeast) {
+    const k = l ? skill(l) : null;
+    if (k && RANK[k] > RANK[s]) s = k;
+  }
   const inMain = race.finish >= 1 && race.finish <= 8;
   const m = multiplier(race.raceType);
   // Finish points plus one point for every rider in the class, all times the race's multiplier.
-  const points: RacePoints = { district: ((inMain ? DISTRICT[s][race.finish - 1] : 0) + race.riders) * m };
+  const points: RacePoints = { district: ((inMain ? DISTRICT[s][race.finish - 1] : 0) + race.riders) * m, level: s };
   const series = inMain ? SERIES[s][race.finish - 1] : SERIES_DNQ;
   // State championship races are worth double (or triple at the final) state points, like their district points.
   if (/\b(state|provincial)\b/i.test(race.raceType) && !/pre[- ]?race/i.test(race.raceType)) points.state = series * m;

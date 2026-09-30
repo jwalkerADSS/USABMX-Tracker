@@ -186,7 +186,9 @@ export async function getRaceDayResults(raceDayId: number): Promise<ResultGroup[
 
 // ---- Who they raced against ----------------------------------------------------
 
-export type FieldEntry = ResultRider & { self: boolean };
+// level: the rider's level on their USA BMX profile today, when results link to their profile. USA BMX keeps
+// no record of a rider's level on the day, so for older races it can be higher than it was then.
+export type FieldEntry = ResultRider & { self: boolean; level: string | null };
 export type RaceField = { trackId: number | null; moto: string | null; field: FieldEntry[] | null };
 
 export async function getRaceField(race: Race, memberId: number): Promise<RaceField> {
@@ -195,10 +197,12 @@ export async function getRaceField(race: Race, memberId: number): Promise<RaceFi
   if (!day) return { trackId: event.trackId, moto: null, field: null };
   const group = (await getRaceDayResults(day.raceDayId)).find(g => g.riders.some(r => r.memberId === memberId));
   if (!group) return { trackId: event.trackId, moto: null, field: null };
+  const levels = await Promise.all(group.riders.map(r =>
+    r.profileId && r.memberId !== memberId ? getProfile(r.profileId).then(p => p?.level ?? null, () => null) : null));
   return {
     trackId: event.trackId,
     moto: group.className,
-    field: group.riders.map(r => ({ ...r, self: r.memberId === memberId })),
+    field: group.riders.map((r, i) => ({ ...r, self: r.memberId === memberId, level: levels[i] })),
   };
 }
 
