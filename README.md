@@ -7,11 +7,12 @@ All data comes from the public USA BMX site, read on demand and cached for six h
 ## What's in it
 
 - **Riders** (`/`): a card per tracked rider with level, home track, rank at district, state, NAG and national, season wins and last race.
-- **Rider page** (`/riders/{profileId}`): standings with the points gap to the next place, #10 and #1; season record; last five races with finish, race type, level and the riders they raced against. Opponents link to their own pages.
+- **Rider page** (`/riders/{profileId}`): standings with the points gap to the next place, #10 and #1; season record (wins, podiums for 2nd and 3rd, other finishes); last five races with finish, points earned, race type, level and the riders they raced against. Opponents link to their own pages and track names link to the track page.
+- **Track page** (`/tracks/{trackId}`): the track's latest race results for every class, with a race-date picker for earlier races. Our riders are highlighted.
 - **Search** (`/search`): find a rider by name. The list is built nightly from the national standings and the Nevada district standings (`scripts/build-index.mjs`, run by `.github/workflows/rider-index.yml`). A USA BMX profile number also works.
 - **Sign-in**: an allow-listed email plus a family password, remembered for 90 days.
 
-Tracked riders and the standings tables to check for each are in [`data/riders.json`](data/riders.json). Points earned per race aren't published by USA BMX, so they're not shown yet.
+Tracked riders and the standings tables to check for each are in [`data/riders.json`](data/riders.json). USA BMX doesn't publish points per race, so [`lib/points.ts`](lib/points.ts) works them out from the rulebook points tables: finish points plus one point per rider in the class, times the race's multiplier. Totals from national events and bonus points aren't in race history, so the sum can fall short of the official season total.
 
 ## Deploy (Vercel, free plan)
 

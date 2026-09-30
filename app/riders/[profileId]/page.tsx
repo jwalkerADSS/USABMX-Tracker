@@ -8,6 +8,7 @@ import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
+import { racePoints } from '@/lib/points';
 
 export const maxDuration = 60;
 
@@ -40,11 +41,12 @@ export default async function RiderPage({ params, searchParams }: Props) {
             memberId: profile.memberId, name, profileIds: [tracked.profileId, ...(tracked.altProfileIds ?? [])],
           }, points).catch(() => null)))
       : Promise.resolve([]),
-    Promise.all(last5.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ moto: null, field: null })))),
+    Promise.all(last5.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
   ]);
 
+  // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
-  const podiums = races.filter(r => r.finish <= 3).length;
+  const podiums = races.filter(r => r.finish === 2 || r.finish === 3).length;
 
   return (
     <>
@@ -71,8 +73,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
           <div className="stats">
             <Stat label="Races" value={races.length} />
             <Stat label="Wins" value={wins} />
-            <Stat label="Other finishes" value={races.length - wins} />
-            <Stat label="Podiums" value={podiums} />
+            <Stat label="Podiums (2nd–3rd)" value={podiums} />
+            <Stat label="Other finishes" value={races.length - wins - podiums} />
           </div>
         </section>
 
@@ -94,7 +96,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
           ) : (
             <p className="muted">No races in {year} yet.</p>
           )}
-          <p className="muted small">USA BMX doesn&apos;t publish the points earned for each race, so they aren&apos;t shown here yet.</p>
+          <p className="muted small">
+            Points are worked out from the USA BMX rule book: finish points plus one point per rider in the class, times the
+            race&apos;s multiplier. USA BMX doesn&apos;t publish points per race, so season totals can differ slightly.
+          </p>
         </section>
       </main>
     </>
@@ -131,15 +136,26 @@ function StandingItem({ s }: { s: Standing | null }) {
 
 function RaceItem({ race, field }: { race: Race; field: RaceField }) {
   const opponents = field.field?.filter(f => !f.self) ?? [];
+  const points = racePoints(race);
   return (
     <li>
       <div className="race-head">
         <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{ordinal(race.finish)}</span>
-        <div>
-          <strong>{race.track}</strong>
+        <div className="race-body">
+          <div className="race-title">
+            <strong>{field.trackId ? <Link href={`/tracks/${field.trackId}`}>{race.track}</Link> : race.track}</strong>
+            {points ? <span className="race-points">+{pts(points.district)}</span> : null}
+          </div>
           <p className="muted small">
             {formatDate(race.date)} · {race.raceType} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
           </p>
+          {points && (points.state != null || points.goldCup != null) ? (
+            <p className="muted small">
+              {pts(points.district)} district
+              {points.state != null ? ` · ${pts(points.state)} state` : ''}
+              {points.goldCup != null ? ` · ${pts(points.goldCup)} Gold Cup` : ''}
+            </p>
+          ) : null}
         </div>
       </div>
       {opponents.length ? (
