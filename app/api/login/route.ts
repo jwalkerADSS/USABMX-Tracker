@@ -30,8 +30,14 @@ export async function POST(req: NextRequest) {
     if (account === 'locked') return fail('locked');
     if (!account) return fail('1');
     who = ACCOUNT_PREFIX + account.username;
+    // After an admin reset, the temporary password has to be replaced first.
+    if (account.mustChangePassword) return signedIn(req, who, '/change-password');
   }
-  const res = NextResponse.redirect(new URL(safeNext, req.url), 303);
+  return signedIn(req, who, safeNext);
+}
+
+async function signedIn(req: NextRequest, who: string, to: string) {
+  const res = NextResponse.redirect(new URL(to, req.url), 303);
   res.cookies.set(SESSION_COOKIE, await createSession(who), {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86_400,
   });

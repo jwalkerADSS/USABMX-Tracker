@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { currentAccount } from '@/lib/session';
+import { isAdmin } from '@/lib/accounts';
 
 export async function Nav({ back }: { back?: boolean }) {
   const account = await currentAccount();
@@ -7,6 +8,7 @@ export async function Nav({ back }: { back?: boolean }) {
     <header className="nav">
       {back ? <Link href="/">‹ Riders</Link> : <span className="brand">BMX Tracker</span>}
       <nav>
+        {isAdmin(account) ? <Link href="/admin">Admin</Link> : null}
         {account ? <Link href="/my-riders">My riders</Link> : null}
         <Link href="/search">Search</Link>
         <form method="post" action="/api/logout">
