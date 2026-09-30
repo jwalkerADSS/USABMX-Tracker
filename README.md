@@ -21,6 +21,7 @@ Tracked riders and the standings tables to check for each are in [`data/riders.j
    - `ALLOWED_EMAILS`: comma-separated emails that may sign in
    - `APP_PASSWORD`: the family password
    - `SESSION_SECRET`: a long random string, e.g. the output of `openssl rand -hex 32`
+   - `TEST_USER_PASSWORD` (optional): turns on a guest user who signs in with the username `Test` and this password. On first sign-in they search for and choose the rider they want to follow, and the landing page shows that rider. The choice is saved on their device. Remove the variable to turn the Test user off.
 3. Deploy, then open the site on your phone and add it to the home screen:
    - iPhone (Safari): Share, then Add to Home Screen
    - Android (Chrome): menu, then Install app

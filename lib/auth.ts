@@ -1,4 +1,5 @@
 // Minimal family sign-in: an allow-listed email plus a shared password, kept in a signed cookie.
+// There is also one guest user, "Test", with its own password, who picks the rider they follow.
 // Uses Web Crypto so it runs in both middleware (edge) and route handlers.
 
 export const SESSION_COOKIE = 'bmx_session';
@@ -25,10 +26,18 @@ export function allowedEmails(): string[] {
   return (process.env.ALLOWED_EMAILS ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 }
 
+// The Test user can sign in only while TEST_USER_PASSWORD is set; removing it signs them out everywhere.
+export const TEST_USER = 'test';
+
+function isAllowed(user: string): boolean {
+  return allowedEmails().includes(user) || (user === TEST_USER && !!process.env.TEST_USER_PASSWORD);
+}
+
 export function checkCredentials(email: string, password: string): boolean {
-  const expected = process.env.APP_PASSWORD;
+  const user = email.trim().toLowerCase();
+  const expected = user === TEST_USER ? process.env.TEST_USER_PASSWORD : process.env.APP_PASSWORD;
   if (!expected) return false;
-  return allowedEmails().includes(email.trim().toLowerCase()) && timingSafeEqual(password, expected);
+  return isAllowed(user) && timingSafeEqual(password, expected);
 }
 
 // Cookie value: "<email>|<expiry ms>|<signature>"
@@ -44,6 +53,6 @@ export async function verifySession(value: string | undefined): Promise<string |
   const payload = value.slice(0, i);
   if (!timingSafeEqual(value.slice(i + 1), await hmac(payload))) return null;
   const [email, expiry] = payload.split('|');
-  if (!email || Number(expiry) < Date.now() || !allowedEmails().includes(email)) return null;
+  if (!email || Number(expiry) < Date.now() || !isAllowed(email)) return null;
   return email;
 }
