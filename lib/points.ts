@@ -38,7 +38,7 @@ const EVENT_TYPES: [RegExp, number][] = [
   [/grand national/i, 4],
   [/gold cup final|^final,/i, 4],
   [/national/i, 3], // regular nationals are triple district points
-  [/state final|provincial final|\bscf\b|\bpcf\b|gold cup|qualifier/i, 3],
+  [/(state|provincial) (championship )?final|\bscf\b|\bpcf\b|gold cup|qualifier/i, 3],
   [/pre[- ]?race|state|provincial|earned/i, 2],
 ];
 

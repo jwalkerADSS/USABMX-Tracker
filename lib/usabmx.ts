@@ -15,7 +15,7 @@ async function get(path: string): Promise<Response> {
   return res;
 }
 
-async function api<T>(path: string): Promise<T> {
+export async function api<T>(path: string): Promise<T> {
   return (await get('/api/backend/' + path)).json() as Promise<T>;
 }
 
@@ -245,9 +245,9 @@ export async function getNationals(year: number): Promise<National[]> {
     if (!res.data?.length || page * 5 >= (res.total_records ?? 0)) break;
   }
   return rows
-    .filter(r => r.begins_on.startsWith(String(year)))
+    .filter(r => r.begins_on?.startsWith(String(year)))
     .map(r => ({
-      raceId: r.id, name: r.name.trim(), begins: r.begins_on.slice(0, 10), ends: r.ends_on.slice(0, 10),
+      raceId: r.id, name: (r.name ?? '').trim(), begins: r.begins_on.slice(0, 10), ends: (r.ends_on ?? r.begins_on).slice(0, 10),
       venue: r.track_name ?? r.temporary_track_name, city: r.track_city ?? r.temporary_track_city,
       state: r.track_state_abbreviation ?? r.temporary_track_state, region: r.region, hasResults: r.has_results,
     }))
