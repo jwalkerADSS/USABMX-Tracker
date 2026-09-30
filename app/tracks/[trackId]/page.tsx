@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RacePicker } from './race-picker';
 import { TRACKED } from '@/lib/riders';
-import { formatDate, ordinal } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { raceLabel } from '@/lib/points';
-import { getEvent, getRaceDayResults, getTrack, getTrackRaces, type ResultGroup } from '@/lib/usabmx';
+import { getEvent, getRaceDayResults, getTrack, getTrackRaces } from '@/lib/usabmx';
+import { DayResults, oursMatcher } from '../../results';
 
 export const maxDuration = 60;
 
@@ -34,8 +35,6 @@ export default async function TrackPage({ params, searchParams }: Props) {
     ? [{ raceId, date: day.date, raceType: event.raceType ?? 'Race', hasResults: true }, ...races]
     : races;
 
-  const trackedIds = new Set(TRACKED.map(r => r.memberId));
-  const ours = groups.flatMap(g => g.riders.filter(r => trackedIds.has(r.memberId)).map(r => ({ ...r, group: g })));
 
   return (
     <>
@@ -64,53 +63,9 @@ export default async function TrackPage({ params, searchParams }: Props) {
         </section>
 
         {day ? (
-          <>
-            <section className="card">
-              <h2>{formatDate(day.date)} · {raceLabel(event?.raceType ?? 'Race')}</h2>
-              <p className="muted small">
-                {groups.length} motos · {groups.reduce((n, g) => n + g.riders.length, 0)} riders
-              </p>
-              {ours.length ? (
-                <ul className="our-results">
-                  {ours.map(r => (
-                    <li key={`${r.memberId}-${r.group.name}`}>
-                      <span className={`finish ${r.place === 1 ? 'win' : ''}`}>{r.place ? ordinal(r.place) : '–'}</span>
-                      <span>
-                        {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : r.name}
-                        <span className="muted small"> · {r.group.className}, {r.group.riders.length} riders</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </section>
-            {groups.length ? (
-              groups.map(g => <GroupCard key={g.name} group={g} trackedIds={trackedIds} />)
-            ) : (
-              <p className="card muted">No results were posted for this day.</p>
-            )}
-          </>
+          <DayResults groups={groups} isOurs={oursMatcher(TRACKED)} title={`${formatDate(day.date)} · ${raceLabel(event?.raceType ?? 'Race')}`} />
         ) : null}
       </main>
     </>
-  );
-}
-
-function GroupCard({ group, trackedIds }: { group: ResultGroup; trackedIds: Set<number> }) {
-  return (
-    <section className="card group">
-      <div className="group-head">
-        <strong>{group.className}</strong>
-        <span className="muted small">{[group.pointsType, `${group.riders.length} riders`].filter(Boolean).join(' · ')}</span>
-      </div>
-      <ol className="group-riders">
-        {group.riders.map(r => (
-          <li key={r.memberId} className={trackedIds.has(r.memberId) ? 'ours' : ''}>
-            <span className="place">{r.place ? ordinal(r.place) : '–'}</span>
-            {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : <span>{r.name}</span>}
-          </li>
-        ))}
-      </ol>
-    </section>
   );
 }
