@@ -146,20 +146,23 @@ export async function getEvent(raceId: number): Promise<EventInfo> {
 }
 
 // National results have no member ids, and add the rider's team and hometown (detail).
-export type ResultRider = { place: number; name: string; memberId: number | null; profileId: number | null; detail: string | null };
+export type ResultRider = { place: number; name: string; memberId: number | null; profileId: number | null; detail: string | null; homeState: string | null };
 // Local group names look like "10 Intermediate / District / Inter": class, points type, skill.
 // National ones look like "7-8 Mixed Open    Total Riders = 16    Groups = 3" and list only the main's finishers.
 export type ResultGroup = { name: string; className: string; pointsType: string | null; totalRiders: number | null; riders: ResultRider[] };
 
-// National rider strings: "RYLAN (ROCKET RYLAN) SCHROEDER, FACTORY SYNDYT/LSG, TUCSON, AZ". Local ones are just the name.
-function parseResultRider(s: string): { name: string; detail: string | null } {
-  const [name, ...rest] = s.split(',').map(x => x.trim());
+// National rider strings: "RYLAN (ROCKET RYLAN) SCHROEDER, FACTORY SYNDYT/LSG, TUCSON, AZ". Some days add the
+// country as well: "JAMESON (JAYMO) WALKER, LAS VEGAS, NV, United States of America". Local ones are just the name.
+function parseResultRider(s: string): { name: string; detail: string | null; homeState: string | null } {
+  const [name, ...rest] = s.split(',').map(x => x.trim()).filter(Boolean);
   const clean = titleCase(name.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim());
-  if (!rest.length) return { name: clean, detail: null };
-  const state = rest.length >= 2 && /^[A-Z]{2}$/.test(rest.at(-1)!) ? rest.pop()! : null;
+  if (!rest.length) return { name: clean, detail: null, homeState: null };
+  const isState = (x?: string) => !!x && /^[A-Z]{2}$/.test(x);
+  if (rest.length >= 3 && !isState(rest.at(-1)) && isState(rest.at(-2))) rest.pop();
+  const state = rest.length >= 2 && isState(rest.at(-1)) ? rest.pop()! : null;
   const city = state ? rest.pop() : null;
   const home = city ? `${titleCase(city)}, ${state}` : null;
-  return { name: clean, detail: [...rest.filter(Boolean).map(titleCase), home].filter(Boolean).join(' · ') || null };
+  return { name: clean, detail: [...rest.map(titleCase), home].filter(Boolean).join(' · ') || null, homeState: state };
 }
 
 export async function getRaceDayResults(raceDayId: number): Promise<ResultGroup[]> {
@@ -265,7 +268,7 @@ export async function getRiderNationals(year: number, rider: { name: string; sta
   const name = rider.name.toUpperCase();
   const state = rider.state?.toUpperCase();
   const isRider = (r: ResultRider) =>
-    r.name.toUpperCase() === name && (!state || !r.detail || r.detail.toUpperCase().endsWith(`, ${state}`));
+    r.name.toUpperCase() === name && (!state || !r.homeState || r.homeState === state);
   const posted = (await getNationals(year)).filter(n => n.hasResults);
   const found = await mapLimit(posted, 6, async n => {
     const event = await getEvent(n.raceId).catch(() => null);
