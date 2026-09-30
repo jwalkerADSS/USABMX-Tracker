@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCOUNT_PREFIX, SESSION_COOKIE, SESSION_DAYS, TEST_USER, checkCredentials, createSession } from '@/lib/auth';
-import { signInAccount, trialEnds } from '@/lib/accounts';
+import { signInAccount, touchAccount, trialEnds, wasRemoved } from '@/lib/accounts';
 import { storeReady } from '@/lib/store';
 
 export async function POST(req: NextRequest) {
@@ -29,10 +29,11 @@ export async function POST(req: NextRequest) {
     const account = await signInAccount(username, password).catch(() => undefined);
     if (account === undefined) return fail('setup');
     if (account === 'locked') return fail('locked');
-    if (!account) return fail('1');
+    if (!account) return fail((await wasRemoved(username).catch(() => false)) ? 'removed' : '1');
     trial = trialEnds(account) ?? undefined;
     if (trial != null && trial <= Date.now()) return fail('trial');
     who = ACCOUNT_PREFIX + account.username;
+    await touchAccount(account.username).catch(() => {});
     // After an admin reset, the temporary password has to be replaced first.
     if (account.mustChangePassword) return signedIn(req, who, '/change-password', trial);
   }

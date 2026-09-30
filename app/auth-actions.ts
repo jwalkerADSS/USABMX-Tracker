@@ -4,8 +4,8 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { timingSafeEqual } from 'node:crypto';
 import {
-  MAX_RIDERS, changePassword, claimTrialCode, createAccount, isAdmin, isTrialCode, makeTrialCode, markTrialCodeUsed,
-  normalizeCode, releaseTrialCode, renewTrial, requestReset as recordResetRequest, setRiders, setTemporaryPassword, trialEnds,
+  MAX_RIDERS, changePassword, getAccount, claimTrialCode, createAccount, isAdmin, isTrialCode, makeTrialCode, markTrialCodeUsed,
+  normalizeCode, releaseTrialCode, removeAccount, renewTrial, requestReset as recordResetRequest, setRiders, setTemporaryPassword, trialEnds,
 } from '@/lib/accounts';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { currentAccount, startSession } from '@/lib/session';
@@ -98,7 +98,15 @@ export async function newTrialCode(): Promise<void> {
 export async function renewTrialAction(form: FormData): Promise<void> {
   if (!isAdmin(await currentAccount())) redirect('/');
   await renewTrial(String(form.get('username') ?? '').toLowerCase());
-  redirect('/admin#trials');
+  redirect('/admin#users');
+}
+
+// Admin page: remove an account (never an admin's, including your own).
+export async function removeUserAction(form: FormData): Promise<void> {
+  if (!isAdmin(await currentAccount())) redirect('/');
+  const username = String(form.get('username') ?? '').toLowerCase();
+  if (!isAdmin(await getAccount(username))) await removeAccount(username);
+  redirect('/admin#users');
 }
 
 export async function addRider(form: FormData): Promise<void> {

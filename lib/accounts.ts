@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { del, get, hit, set } from './store';
+import { del, get, hit, list, set } from './store';
 import { TEST_USER } from './auth';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
@@ -218,4 +218,52 @@ export async function renewTrial(username: string): Promise<Account | null> {
   account.trialEndsAt = new Date(Math.max(ends, Date.now()) + TRIAL_MS).toISOString();
   await save(account);
   return account;
+}
+
+// ---- Users (admin page) ----------------------------------------------------------
+// Last activity is when the account last opened a page in the app (a full load, like opening the installed app
+// or refreshing) or signed in, saved at most every few minutes.
+
+const seenKey = (u: string) => `seen:${u.toLowerCase()}`;
+const removedKey = (u: string) => `removed:${u.toLowerCase()}`;
+
+// For sign-in: this username belonged to an account the admin removed (and no one has signed up with it since).
+export async function wasRemoved(username: string): Promise<boolean> {
+  const u = username.trim().toLowerCase();
+  return !(await getAccount(u)) && !!(await get(removedKey(u)));
+}
+const SEEN_EVERY_MS = 5 * 60_000;
+
+// False when the account no longer exists (the admin removed it), so its sign-in can be ended.
+export async function touchAccount(username: string): Promise<boolean> {
+  const [account, seen] = await Promise.all([getAccount(username), get(seenKey(username))]);
+  if (!account) return false;
+  if (!seen || Date.now() - Date.parse(seen) > SEEN_EVERY_MS) await set(seenKey(username), new Date().toISOString());
+  return true;
+}
+
+export type UserRow = Account & { lastSeen: string | null };
+
+// Most recently active first; accounts never seen since sign-up go by their sign-up time.
+export async function listAccounts(): Promise<UserRow[]> {
+  const [users, seen] = await Promise.all([list('user:'), list('seen:')]);
+  const lastSeen = new Map(seen.map(r => [r.key.slice('seen:'.length), r.value]));
+  return users
+    .map(r => {
+      const a = JSON.parse(r.value) as Account;
+      return { ...a, lastSeen: lastSeen.get(a.username) ?? null };
+    })
+    .sort((a, b) => (b.lastSeen ?? b.createdAt).localeCompare(a.lastSeen ?? a.createdAt));
+}
+
+// Admin only. Deletes the account and frees its username and email; its sign-in ends the next time it opens a page.
+// A trial code it used stays used.
+export async function removeAccount(username: string): Promise<boolean> {
+  const account = await getAccount(username);
+  if (!account) return false;
+  if ((await get(emailKey(account.email))) === account.username) await del(emailKey(account.email));
+  await Promise.all([del(userKey(account.username)), del(seenKey(account.username)), del(`fail:${account.username}`)]);
+  await set(removedKey(account.username), new Date().toISOString());
+  await set(REQUESTS, JSON.stringify((await resetRequests()).filter(r => r.username !== account.username)));
+  return true;
 }

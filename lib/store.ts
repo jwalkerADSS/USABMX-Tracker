@@ -92,3 +92,12 @@ export async function hit(key: string, seconds: number): Promise<number> {
     RETURNING value`;
   return Number(row.value);
 }
+
+// Every live key starting with prefix, with its value. Used for the admin's list of accounts.
+export async function list(prefix: string): Promise<{ key: string; value: string }[]> {
+  if (MEMORY) return [...mem.keys()].filter(k => k.startsWith(prefix) && memLive(k)).map(k => ({ key: k, value: memLive(k)!.value }));
+  const sql = await db();
+  const pattern = prefix.replace(/[\\%_]/g, c => `\\${c}`) + '%';
+  return sql<{ key: string; value: string }[]>`
+    SELECT key, value FROM kv WHERE key LIKE ${pattern} AND (expires_at IS NULL OR expires_at > now()) ORDER BY key`;
+}
