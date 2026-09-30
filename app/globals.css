@@ -117,3 +117,9 @@ select {
 .results .plain { display: flex; flex-direction: column; padding: 10px 0; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .badge.age { background: var(--card-2); white-space: nowrap; }
+.track-best { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.track-tile { background: var(--card-2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.track-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.track-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; padding: 4px 6px 6px 0; }
+.track-table td { padding: 6px 6px 6px 0; border-top: 1px solid #24416e; }
+.track-table th:not(:first-child), .track-table td:not(:first-child) { text-align: right; white-space: nowrap; }

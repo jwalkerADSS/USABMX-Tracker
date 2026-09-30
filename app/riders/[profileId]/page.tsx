@@ -9,6 +9,7 @@ import {
   type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { raceLabel, racePoints } from '@/lib/points';
+import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 
 export const maxDuration = 60;
 
@@ -48,6 +49,11 @@ export default async function RiderPage({ params, searchParams }: Props) {
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
   const podiums = races.filter(r => r.finish === 2 || r.finish === 3).length;
+  const tracks = winsByTrack(races);
+  const top = tracks[0];
+  const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
+  // Track pages need the USA BMX track id, which only the recent races have looked up.
+  const trackIds = new Map(last5.map((r, i) => [r.track, fields[i]?.trackId] as const).filter(([, id]) => id));
 
   return (
     <>
@@ -80,7 +86,37 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <Stat label="Podiums (2nd–3rd)" value={podiums} />
             <Stat label="Other finishes" value={races.length - wins - podiums} />
           </div>
+          {top ? (
+            <div className="track-best">
+              <TrackTile label="Top track" t={top} id={trackIds.get(top.track)} />
+              {worst && worst.track !== top.track ? <TrackTile label="Worst track" t={worst} id={trackIds.get(worst.track)} /> : null}
+            </div>
+          ) : null}
         </section>
+
+        {tracks.length > 1 ? (
+          <section className="card">
+            <h2>Wins by track</h2>
+            <table className="track-table">
+              <thead>
+                <tr><th>Track</th><th>Wins</th><th>Races</th><th>Win %</th></tr>
+              </thead>
+              <tbody>
+                {tracks.map(t => {
+                  const id = trackIds.get(t.track);
+                  return (
+                    <tr key={t.track}>
+                      <td>{id ? <Link href={`/tracks/${id}`}>{t.track}</Link> : t.track}</td>
+                      <td>{t.wins}</td>
+                      <td>{t.races}</td>
+                      <td>{Math.round((t.wins / t.races) * 100)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        ) : null}
 
         {tracked ? (
           <section className="card">
@@ -107,6 +143,16 @@ export default async function RiderPage({ params, searchParams }: Props) {
         </section>
       </main>
     </>
+  );
+}
+
+function TrackTile({ label, t, id }: { label: string; t: TrackRecord; id?: number | null }) {
+  return (
+    <div className="track-tile">
+      <span className="stat-label">{label}</span>
+      <strong>{id ? <Link href={`/tracks/${id}`}>{t.track}</Link> : t.track}</strong>
+      <span className="muted small">{t.wins} {t.wins === 1 ? 'win' : 'wins'} in {t.races} {t.races === 1 ? 'race' : 'races'}</span>
+    </div>
   );
 }
 
