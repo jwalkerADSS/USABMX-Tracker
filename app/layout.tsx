@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { InstallApp } from './install-app';
+import { UpdateBanner } from './update-banner';
 
 export const metadata: Metadata = {
   title: { default: 'BMX Tracker', template: '%s · BMX Tracker' },
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <script dangerouslySetInnerHTML={{ __html: CATCH_INSTALL_PROMPT }} />
+        <UpdateBanner />
         {children}
         <InstallApp />
       </body>

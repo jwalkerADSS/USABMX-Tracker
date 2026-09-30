@@ -11,6 +11,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Everything except sign-in, sign-up and forgot password, and the files a phone needs to install the app.
-  matcher: ['/((?!login|signup|forgot|api/login|_next/|manifest.webmanifest|icons/|favicon.ico|apple-touch-icon.png).*)'],
+  // Everything except sign-in, sign-up, forgot password, the version check, and the files a phone needs to install the app.
+  matcher: ['/((?!login|signup|forgot|api/login|api/version|_next/|manifest.webmanifest|icons/|favicon.ico|apple-touch-icon.png).*)'],
 };
