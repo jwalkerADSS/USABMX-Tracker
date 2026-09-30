@@ -88,7 +88,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
 .results a { display: flex; flex-direction: column; padding: 10px 0; text-decoration: none; }
 
 @media (max-width: 420px) {
-  .ranks, .stats { grid-template-columns: repeat(2, 1fr); }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 .race-body { flex: 1; min-width: 0; }
@@ -123,3 +123,17 @@ select {
 .track-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; padding: 4px 6px 6px 0; }
 .track-table td { padding: 6px 6px 6px 0; border-top: 1px solid #24416e; }
 .track-table th:not(:first-child), .track-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.rank-link { text-decoration: none; }
+.rank-link:active, .rank-link:hover { background: #22467c; }
+.ranks { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.9rem; }
+.pager a { text-decoration: none; font-weight: 600; }
+.standings-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.standings-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; padding: 4px 6px 6px 0; }
+.standings-table td { padding: 6px 6px 6px 0; border-top: 1px solid #24416e; vertical-align: top; }
+.standings-table td:first-child { width: 44px; color: var(--muted); }
+.standings-table td:last-child, .standings-table th:last-child { text-align: right; white-space: nowrap; }
+.standings-table tr.ours td { color: var(--win); font-weight: 700; }
+#me { scroll-margin-top: 80px; }
+.rider-card h2 a { text-decoration: none; }
+.card-more { display: inline-block; margin-top: 8px; font-weight: 600; color: var(--muted); text-decoration: none; }

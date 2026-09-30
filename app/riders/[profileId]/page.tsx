@@ -70,7 +70,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>
-          <RankRow points={points} />
+          <RankRow points={points} profileId={tracked?.profileId} goldCup={standings.find(s => s?.level === 'goldCup')} />
           {points.plates.length ? (
             <p className="muted small">
               Plates: {points.plates.map(p => `${p.plateType} #${p.value} (${p.season})`).join(', ')}
