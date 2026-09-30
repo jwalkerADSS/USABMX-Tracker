@@ -5,10 +5,10 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked } from '@/lib/riders';
 import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
-  type Level, type Race, type RaceField, type Standing,
+  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding, getTrackIds,
+  type FieldEntry, type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
-import { raceLabel, racePoints } from '@/lib/points';
+import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 
 export const maxDuration = 60;
@@ -36,7 +36,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
 
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
   const last5 = races.slice(0, 5);
-  const [standings, fields] = await Promise.all([
+  // Only this season's races can be compared with riders' current levels.
+  const thisSeason = year === currentSeason();
+  const raised = thisSeason ? raisedRaces(races, profile.level) : new Set<Race>();
+  const [standings, fields, trackIds] = await Promise.all([
     tracked
       ? Promise.all((Object.keys(LEVEL_LABELS) as Level[]).map(level =>
           getStanding(level, tracked.tables, year, {
@@ -44,6 +47,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           }, points).catch(() => null)))
       : Promise.resolve([]),
     Promise.all(last5.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
+    getTrackIds(races),
   ]);
 
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
@@ -52,8 +56,6 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const tracks = winsByTrack(races);
   const top = tracks[0];
   const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
-  // Track pages need the USA BMX track id, which only the recent races have looked up.
-  const trackIds = new Map(last5.map((r, i) => [r.track, fields[i]?.trackId] as const).filter(([, id]) => id));
 
   return (
     <>
@@ -131,7 +133,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           <h2>Last {last5.length} races</h2>
           {last5.length ? (
             <ul className="races">
-              {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} />)}
+              {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} />)}
             </ul>
           ) : (
             <p className="muted">No races in {year} yet.</p>
@@ -184,9 +186,15 @@ function StandingItem({ s }: { s: Standing | null }) {
   );
 }
 
-function RaceItem({ race, field }: { race: Race; field: RaceField }) {
+function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: RaceField; ownLevel: string | null; useLevels: boolean }) {
   const opponents = field.field?.filter(f => !f.self) ?? [];
-  const points = racePoints(race);
+  // The highest level in the moto sets everyone's points. Profiles only show today's level, so older seasons skip this.
+  const top = useLevels ? opponents.reduce<FieldEntry | null>((t, o) => (higherLevel(o.level, t?.level) ? o : t), null) : null;
+  const points = racePoints(race, [ownLevel, top?.level]);
+  const lifted = points && higherLevel(points.level, race.level) ? points.level : null;
+  const why = !lifted ? ''
+    : top && !higherLevel(lifted, top.level) ? ` · ${lifted} points: ${top.name} (${top.level}) raced in this moto`
+    : ` · ${lifted} points (rider’s own level)`;
   return (
     <li>
       <div className="race-head">
@@ -199,6 +207,7 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           </div>
           <p className="muted small">
             {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {why}
           </p>
           {points && (points.state != null || points.goldCup != null) ? (
             <p className="muted small">
