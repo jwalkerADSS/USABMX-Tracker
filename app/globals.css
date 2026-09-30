@@ -39,6 +39,9 @@ p { margin: 4px 0; }
 .nav nav { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; }
 .nav .link { white-space: nowrap; }
 .brand { font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
+.nav.with-title { border-bottom: 1px solid var(--card-2); }
+.nav-title { flex-basis: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.nav-title h1 { margin: 0; font-size: 1.35rem; min-width: 0; }
 
 button, input {
   font: inherit; border-radius: 10px; border: 1px solid #2c4c7c; padding: 10px 12px;
