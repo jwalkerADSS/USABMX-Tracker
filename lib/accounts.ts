@@ -16,6 +16,8 @@ export type Account = {
   riders: number[]; // USA BMX profile ids, up to MAX_RIDERS
   createdAt: string;
   mustChangePassword?: boolean; // set by an admin reset
+  trialEndsAt?: string; // trial accounts only: when sign-in stops working unless the admin renews it
+  trialCode?: string; // the one-time code the trial signed up with
 };
 
 const RESERVED = new Set([TEST_USER, 'admin', 'administrator', 'root', 'support', 'usabmx']);
@@ -59,7 +61,7 @@ async function save(account: Account): Promise<void> {
   await set(userKey(account.username), JSON.stringify(account));
 }
 
-export async function createAccount(input: { username: string; password: string; email: string }): Promise<Account | string> {
+export async function createAccount(input: { username: string; password: string; email: string; trialCode?: string }): Promise<Account | string> {
   const displayName = input.username.trim();
   const email = input.email.trim().toLowerCase();
   const problem = checkUsername(displayName) ?? checkPassword(input.password) ?? checkEmail(email);
@@ -67,6 +69,7 @@ export async function createAccount(input: { username: string; password: string;
   const account: Account = {
     username: displayName.toLowerCase(), displayName, email, passwordHash: await hashPassword(input.password), riders: [],
     createdAt: new Date().toISOString(),
+    ...(input.trialCode ? { trialCode: input.trialCode, trialEndsAt: new Date(Date.now() + TRIAL_MS).toISOString() } : {}),
   };
   // Claim the username, then the email; undo the first if the second is already in use.
   if (!(await set(userKey(account.username), JSON.stringify(account), { onlyIfNew: true }))) return 'That username is taken.';
@@ -151,6 +154,68 @@ export async function changePassword(username: string, current: string, next: st
   if (current === next) return 'Pick a password different from the current one.';
   account.passwordHash = await hashPassword(next);
   delete account.mustChangePassword;
+  await save(account);
+  return account;
+}
+
+// ---- Trials ----------------------------------------------------------------------
+// The admin makes one-time trial codes on the admin page. Signing up with one gives 7 days from sign-up; after
+// that sign-in stops working (and trial sessions end, see lib/auth.ts) until the admin renews it for 7 more days.
+
+export const TRIAL_DAYS = 7;
+const TRIAL_MS = TRIAL_DAYS * 86_400_000;
+export type TrialCode = { code: string; createdAt: string; usedBy?: string; usedAt?: string };
+const CODES = 'trial-codes';
+const codeKey = (c: string) => `trial-code:${c}`;
+const usedKey = (c: string) => `trial-used:${c}`;
+
+// No 0/O or 1/I/L, so a code read out or copied by hand still works. Typed codes are matched in capitals.
+const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const normalizeCode = (c: string) => c.trim().toUpperCase().replace(/\s+/g, '');
+
+export function trialEnds(account: Account): number | null {
+  return account.trialEndsAt ? Date.parse(account.trialEndsAt) : null;
+}
+
+export async function trialCodes(): Promise<TrialCode[]> {
+  return JSON.parse((await get(CODES)) ?? '[]') as TrialCode[];
+}
+
+export async function makeTrialCode(): Promise<TrialCode> {
+  const bytes = randomBytes(8);
+  const body = [...bytes].map(b => CODE_LETTERS[b % CODE_LETTERS.length]).join('');
+  const entry: TrialCode = { code: `TRIAL-${body.slice(0, 4)}-${body.slice(4)}`, createdAt: new Date().toISOString() };
+  await set(codeKey(entry.code), entry.createdAt);
+  await set(CODES, JSON.stringify([...(await trialCodes()), entry].slice(-100)));
+  return entry;
+}
+
+export async function isTrialCode(code: string): Promise<boolean> {
+  const c = normalizeCode(code);
+  return /^TRIAL-/.test(c) && !!(await get(codeKey(c)));
+}
+
+// Takes the code for this username. Only the first caller gets it, so a code can never make two accounts.
+export async function claimTrialCode(code: string, username: string): Promise<boolean> {
+  return set(usedKey(normalizeCode(code)), username, { onlyIfNew: true });
+}
+
+export async function releaseTrialCode(code: string): Promise<void> {
+  await del(usedKey(normalizeCode(code)));
+}
+
+export async function markTrialCodeUsed(code: string, username: string): Promise<void> {
+  const c = normalizeCode(code);
+  const list = (await trialCodes()).map(t => (t.code === c ? { ...t, usedBy: username, usedAt: new Date().toISOString() } : t));
+  await set(CODES, JSON.stringify(list));
+}
+
+// Admin only: 7 more days, counted from now if the trial already ended, or from its end if it hasn't.
+export async function renewTrial(username: string): Promise<Account | null> {
+  const account = await getAccount(username);
+  const ends = account && trialEnds(account);
+  if (!account || ends == null) return null;
+  account.trialEndsAt = new Date(Math.max(ends, Date.now()) + TRIAL_MS).toISOString();
   await save(account);
   return account;
 }

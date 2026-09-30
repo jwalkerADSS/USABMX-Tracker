@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ACCOUNT_PREFIX, SESSION_COOKIE, SESSION_DAYS, TEST_USER, checkCredentials, createSession } from '@/lib/auth';
-import { signInAccount } from '@/lib/accounts';
+import { signInAccount, trialEnds } from '@/lib/accounts';
 import { storeReady } from '@/lib/store';
 
 export async function POST(req: NextRequest) {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
   };
 
   let who: string;
+  let trial: number | undefined;
   if (username.includes('@') || username.toLowerCase() === TEST_USER) {
     // The family email and the Test user, from before accounts.
     if (!checkCredentials(username, password)) return fail('1');
@@ -29,16 +30,18 @@ export async function POST(req: NextRequest) {
     if (account === undefined) return fail('setup');
     if (account === 'locked') return fail('locked');
     if (!account) return fail('1');
+    trial = trialEnds(account) ?? undefined;
+    if (trial != null && trial <= Date.now()) return fail('trial');
     who = ACCOUNT_PREFIX + account.username;
     // After an admin reset, the temporary password has to be replaced first.
-    if (account.mustChangePassword) return signedIn(req, who, '/change-password');
+    if (account.mustChangePassword) return signedIn(req, who, '/change-password', trial);
   }
-  return signedIn(req, who, safeNext);
+  return signedIn(req, who, safeNext, trial);
 }
 
-async function signedIn(req: NextRequest, who: string, to: string) {
+async function signedIn(req: NextRequest, who: string, to: string, trial?: number) {
   const res = NextResponse.redirect(new URL(to, req.url), 303);
-  res.cookies.set(SESSION_COOKIE, await createSession(who), {
+  res.cookies.set(SESSION_COOKIE, await createSession(who, trial), {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86_400,
   });
   return res;

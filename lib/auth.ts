@@ -47,19 +47,32 @@ export function checkCredentials(email: string, password: string): boolean {
   return isAllowed(user) && timingSafeEqual(password, expected);
 }
 
-// Cookie value: "<who>|<expiry ms>|<signature>"
-export async function createSession(who: string): Promise<string> {
-  const payload = `${who.trim().toLowerCase()}|${Date.now() + SESSION_DAYS * 86_400_000}`;
+// Cookie value: "<who>|<expiry ms>|<signature>", or "<who>|<expiry ms>|trial|<signature>" for a trial account,
+// whose session ends when the trial does.
+export async function createSession(who: string, trialEnds?: number): Promise<string> {
+  const expiry = Math.min(Date.now() + SESSION_DAYS * 86_400_000, trialEnds ?? Infinity);
+  const payload = `${who.trim().toLowerCase()}|${expiry}${trialEnds ? '|trial' : ''}`;
   return `${payload}|${await hmac(payload)}`;
 }
 
-export async function verifySession(value: string | undefined): Promise<string | null> {
+async function readSession(value: string | undefined): Promise<{ who: string; expired: boolean; trial: boolean } | null> {
   if (!value) return null;
   const i = value.lastIndexOf('|');
   if (i < 0) return null;
   const payload = value.slice(0, i);
   if (!timingSafeEqual(value.slice(i + 1), await hmac(payload))) return null;
-  const [email, expiry] = payload.split('|');
-  if (!email || Number(expiry) < Date.now() || !isAllowed(email)) return null;
-  return email;
+  const [who, expiry, kind] = payload.split('|');
+  if (!who || !isAllowed(who)) return null;
+  return { who, expired: !(Number(expiry) >= Date.now()), trial: kind === 'trial' };
+}
+
+export async function verifySession(value: string | undefined): Promise<string | null> {
+  const s = await readSession(value);
+  return s && !s.expired ? s.who : null;
+}
+
+// True when the cookie belongs to a trial that has run out, so sign-in can say why.
+export async function trialEnded(value: string | undefined): Promise<boolean> {
+  const s = await readSession(value);
+  return !!s?.expired && s.trial;
 }
