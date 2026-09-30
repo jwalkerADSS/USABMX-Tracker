@@ -8,7 +8,7 @@ import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
-import { racePoints } from '@/lib/points';
+import { raceLabel, racePoints } from '@/lib/points';
 
 export const maxDuration = 60;
 
@@ -149,9 +149,10 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           <div className="race-title">
             <strong>{field.trackId ? <Link href={`/tracks/${field.trackId}`}>{race.track}</Link> : race.track}</strong>
             {points ? <span className="race-points">+{pts(points.district)}</span> : null}
+
           </div>
           <p className="muted small">
-            {formatDate(race.date)} · {race.raceType} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
           </p>
           {points && (points.state != null || points.goldCup != null) ? (
             <p className="muted small">
@@ -168,7 +169,7 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           {opponents.map((o, i) => (
             <span key={o.memberId}>
               {i ? ', ' : ''}
-              {o.profileId ? <Link href={`/riders/${o.profileId}`}>{o.name}</Link> : o.name} ({ordinal(o.place)})
+              {o.profileId ? <Link href={`/riders/${o.profileId}`}>{o.name}</Link> : o.name}{o.place ? ` (${ordinal(o.place)})` : ''}
             </span>
           ))}
         </p>

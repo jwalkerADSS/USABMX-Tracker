@@ -152,7 +152,8 @@ export async function getRaceDayResults(raceDayId: number): Promise<ResultGroup[
       pointsType: pointsType || null,
       riders: g.details
         .map(d => ({ place: d.rank, name: titleCase(d.rider), memberId: d.bmx_member_id, profileId: d.bmx_profile_id }))
-        .sort((a, b) => a.place - b.place),
+        // Place 0 means no finish recorded (e.g. balance bike classes); list those last.
+        .sort((a, b) => (a.place || Infinity) - (b.place || Infinity)),
     };
   });
 }
