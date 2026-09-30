@@ -5,8 +5,9 @@ import { storeReady } from '@/lib/store';
 export const metadata = { title: 'Sign up' };
 
 export default function SignUpPage() {
-  // Sign-up needs the invite code (SIGNUP_CODE) and the account database, both set up in Vercel.
-  const open = !!process.env.SIGNUP_CODE && storeReady();
+  // Sign-up needs the account database, plus the invite code (SIGNUP_CODE, set in Vercel) or a trial code from
+  // the admin page.
+  const open = storeReady();
   return (
     <main className="login">
       <h1>BMX Tracker</h1>

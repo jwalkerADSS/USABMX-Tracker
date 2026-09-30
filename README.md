@@ -20,9 +20,9 @@ Tracked riders and the standings tables to check for each are in [`data/riders.j
 
 1. Sign in at [vercel.com](https://vercel.com) with GitHub and import this repository. The defaults for Next.js are correct.
 2. Add these environment variables (see `.env.example`):
-   - `SIGNUP_CODE`: the invite code people need to sign up. Leave it unset to close sign-up.
+   - `SIGNUP_CODE`: the invite code people need to sign up for a full account. Leave it unset to allow only trial codes.
    - `DATABASE_URL`: set for you when you create a Neon Postgres database (Free plan) in the project's Storage tab and connect it. The app creates its one table on first use.
-   - `ADMIN_USERNAMES`: your account's username (comma-separate several). Those accounts get an Admin page for password resets.
+   - `ADMIN_USERNAMES`: your account's username (comma-separate several). Those accounts get an Admin page for password resets and trial codes. Each trial code signs up one account for 7 days from sign-up and can't be used again; when the trial ends, sign-in stops (with a button to email the admin) until an admin adds 7 more days on the Admin page.
    - `ADMIN_EMAIL`: where password reset requests go. "Forgot password" lists the request on the Admin page and opens an email to this address in the person's own mail app (the address is visible on that page). On the Admin page you set a temporary password and send it back with one tap; they choose a new password at their next sign-in.
    - `ALLOWED_EMAILS`: comma-separated emails that may sign in
    - `APP_PASSWORD`: the family password

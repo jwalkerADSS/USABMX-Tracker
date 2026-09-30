@@ -7,7 +7,16 @@ const ERRORS: Record<string, string> = {
   '1': 'That username or password didn’t match.',
   locked: 'Too many wrong passwords. Wait 15 minutes, or reset your password.',
   setup: 'Accounts aren’t set up on this site yet.',
+  trial: 'Your free trial has ended. Ask the admin to renew it, then sign in again.',
 };
+
+function renewMailto(): string | null {
+  const admin = process.env.ADMIN_EMAIL;
+  return admin
+    ? `mailto:${admin}?subject=${encodeURIComponent('BMX Tracker trial renewal')}&body=${encodeURIComponent(
+        'Hi, my BMX Tracker trial has ended. Please renew it. My username is: ')}`
+    : null;
+}
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
   const { error, next } = await searchParams;
@@ -26,6 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </label>
         {next ? <input type="hidden" name="next" value={next} /> : null}
         {error ? <p className="error">{ERRORS[error] ?? ERRORS['1']}</p> : null}
+        {error === 'trial' && renewMailto() ? <a href={renewMailto()!} className="button secondary">Email the admin</a> : null}
         <button type="submit">Sign in</button>
         <Link href="/forgot" className="auth-link">Forgot password?</Link>
       </form>

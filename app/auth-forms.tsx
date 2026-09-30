@@ -32,6 +32,7 @@ export function SignUpForm() {
       <label>
         Invite code
         <input name="code" autoComplete="off" autoCapitalize="none" autoCorrect="off" required />
+        <span className="muted small">Or the trial code the admin gave you.</span>
       </label>
       {state.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={pending}>{pending ? 'Creating account…' : 'Create account'}</button>

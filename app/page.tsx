@@ -69,6 +69,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       <>
         <Nav />
         <main className="stack">
+          {account.trialEndsAt ? (
+            <p className="card small trial-note">
+              Free trial: ends {new Date(account.trialEndsAt).toLocaleString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles',
+              })}. Ask the admin to renew it.
+            </p>
+          ) : null}
           {profiles.map((p, i) => {
             if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
             // The family's riders keep their clickable standings tiles.

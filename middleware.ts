@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { SESSION_COOKIE, verifySession } from '@/lib/auth';
+import { SESSION_COOKIE, trialEnded, verifySession } from '@/lib/auth';
 
 export async function middleware(req: NextRequest) {
-  const email = await verifySession(req.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  const email = await verifySession(cookie).catch(() => null);
   if (email) return NextResponse.next();
   const url = req.nextUrl.clone();
   url.pathname = '/login';
-  url.search = req.nextUrl.pathname === '/' ? '' : `?next=${encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search)}`;
+  url.search = (await trialEnded(cookie).catch(() => false))
+    ? '?error=trial'
+    : req.nextUrl.pathname === '/' ? '' : `?next=${encodeURIComponent(req.nextUrl.pathname + req.nextUrl.search)}`;
   return NextResponse.redirect(url);
 }
 

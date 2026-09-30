@@ -20,8 +20,8 @@ export async function currentAccount(): Promise<Account | null> {
   return user?.startsWith(ACCOUNT_PREFIX) ? getAccount(user.slice(ACCOUNT_PREFIX.length)).catch(() => null) : null;
 }
 
-export async function startSession(who: string): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE, await createSession(who), {
+export async function startSession(who: string, trialEnds?: number): Promise<void> {
+  (await cookies()).set(SESSION_COOKIE, await createSession(who, trialEnds), {
     httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86_400,
   });
 }
