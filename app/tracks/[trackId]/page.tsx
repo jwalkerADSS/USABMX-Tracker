@@ -4,6 +4,7 @@ import { Nav } from '../../nav';
 import { RacePicker } from './race-picker';
 import { TRACKED } from '@/lib/riders';
 import { formatDate, ordinal } from '@/lib/format';
+import { raceLabel } from '@/lib/points';
 import { getEvent, getRaceDayResults, getTrack, getTrackRaces, type ResultGroup } from '@/lib/usabmx';
 
 export const maxDuration = 60;
@@ -65,13 +66,15 @@ export default async function TrackPage({ params, searchParams }: Props) {
         {day ? (
           <>
             <section className="card">
-              <h2>{event?.raceType ?? 'Race'} · {formatDate(day.date)}</h2>
-              <p className="muted small">{groups.length} classes · {groups.reduce((n, g) => n + g.riders.length, 0)} riders</p>
+              <h2>{formatDate(day.date)} · {raceLabel(event?.raceType ?? 'Race')}</h2>
+              <p className="muted small">
+                {groups.length} classes · {groups.reduce((n, g) => n + g.riders.length, 0)} riders
+              </p>
               {ours.length ? (
                 <ul className="our-results">
                   {ours.map(r => (
                     <li key={`${r.memberId}-${r.group.name}`}>
-                      <span className={`finish ${r.place === 1 ? 'win' : ''}`}>{ordinal(r.place)}</span>
+                      <span className={`finish ${r.place === 1 ? 'win' : ''}`}>{r.place ? ordinal(r.place) : '–'}</span>
                       <span>
                         {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : r.name}
                         <span className="muted small"> · {r.group.className}, {r.group.riders.length} riders</span>
@@ -103,7 +106,7 @@ function GroupCard({ group, trackedIds }: { group: ResultGroup; trackedIds: Set<
       <ol className="group-riders">
         {group.riders.map(r => (
           <li key={r.memberId} className={trackedIds.has(r.memberId) ? 'ours' : ''}>
-            <span className="place">{ordinal(r.place)}</span>
+            <span className="place">{r.place ? ordinal(r.place) : '–'}</span>
             {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : <span>{r.name}</span>}
           </li>
         ))}
