@@ -193,7 +193,7 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
         <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{ordinal(race.finish)}</span>
         <div className="race-body">
           <div className="race-title">
-            <strong>{field.trackId ? <Link href={`/tracks/${field.trackId}`}>{race.track}</Link> : race.track}</strong>
+            <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{race.track}</Link></strong>
             {points ? <span className="race-points">+{pts(points.district)}</span> : null}
 
           </div>

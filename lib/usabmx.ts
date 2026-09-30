@@ -119,7 +119,11 @@ export async function getRaceHistory(memberId: number, year: number): Promise<Ra
 // ---- Events, race days and results ------------------------------------------
 
 export type RaceDay = { raceDayId: number; date: string; name: string };
-export type EventInfo = { raceId: number; trackId: number | null; trackName: string | null; raceType: string | null; days: RaceDay[] };
+export type EventInfo = {
+  raceId: number; trackId: number | null; trackName: string | null; raceType: string | null; days: RaceDay[];
+  // Nationals are often at a temporary venue (an arena or fairground) with no track id.
+  venue: string | null; city: string | null; state: string | null; hasResults: boolean;
+};
 
 // /events/{raceId}/results lists the event's race days (multi-day events have several) and its track.
 export async function getEvent(raceId: number): Promise<EventInfo> {
@@ -131,27 +135,46 @@ export async function getEvent(raceId: number): Promise<EventInfo> {
     trackId: ev.bmx_track_id ?? null,
     trackName: ev.track_name ?? null,
     raceType: ev.name?.trim() ?? null,
+    venue: ev.track_name ?? (ev.is_temporary_track ? ev.temporary_track_name : null) ?? null,
+    city: ev.city ?? ev.temporary_track_city ?? null,
+    state: ev.state_abbreviation ?? ev.temporary_track_state ?? null,
+    hasResults: ev.has_results !== false,
     days: days
       .map(d => ({ raceDayId: d.race_day_id, date: d.occurs_on.slice(0, 10), name: (d.name ?? '').trim() }))
       .sort((a, b) => a.date.localeCompare(b.date)),
   };
 }
 
-export type ResultRider = { place: number; name: string; memberId: number; profileId: number | null };
-// Group names look like "10 Intermediate / District / Inter": class, points type, skill.
-export type ResultGroup = { name: string; className: string; pointsType: string | null; riders: ResultRider[] };
+// National results have no member ids, and add the rider's team and hometown (detail).
+export type ResultRider = { place: number; name: string; memberId: number | null; profileId: number | null; detail: string | null };
+// Local group names look like "10 Intermediate / District / Inter": class, points type, skill.
+// National ones look like "7-8 Mixed Open    Total Riders = 16    Groups = 3" and list only the main's finishers.
+export type ResultGroup = { name: string; className: string; pointsType: string | null; totalRiders: number | null; riders: ResultRider[] };
+
+// National rider strings: "RYLAN (ROCKET RYLAN) SCHROEDER, FACTORY SYNDYT/LSG, TUCSON, AZ". Local ones are just the name.
+function parseResultRider(s: string): { name: string; detail: string | null } {
+  const [name, ...rest] = s.split(',').map(x => x.trim());
+  const clean = titleCase(name.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim());
+  if (!rest.length) return { name: clean, detail: null };
+  const state = rest.length >= 2 && /^[A-Z]{2}$/.test(rest.at(-1)!) ? rest.pop()! : null;
+  const city = state ? rest.pop() : null;
+  const home = city ? `${titleCase(city)}, ${state}` : null;
+  return { name: clean, detail: [...rest.filter(Boolean).map(titleCase), home].filter(Boolean).join(' · ') || null };
+}
 
 export async function getRaceDayResults(raceDayId: number): Promise<ResultGroup[]> {
-  type Res = { data?: { rider_result?: { race_groups: { name: string; details: { rider: string; rank: number; bmx_member_id: number; bmx_profile_id: number | null }[] }[] } } };
+  type Res = { data?: { rider_result?: { race_groups: { name: string; details: { rider: string; rank: number; bmx_member_id: number | null; bmx_profile_id: number | null }[] }[] } } };
   const res = await api<Res>(`v2/events/results/${raceDayId}`);
   return (res.data?.rider_result?.race_groups ?? []).map(g => {
-    const [className, pointsType] = g.name.split(' / ').map(x => x.trim());
+    const [head, total] = g.name.split(/\s+Total Riders\s*=\s*/);
+    const [className, pointsType] = head.split(' / ').map(x => x.trim());
     return {
       name: g.name,
       className: className || g.name,
       pointsType: pointsType || null,
+      totalRiders: Number(total?.match(/^\d+/)?.[0]) || null,
       riders: g.details
-        .map(d => ({ place: d.rank, name: titleCase(d.rider), memberId: d.bmx_member_id, profileId: d.bmx_profile_id }))
+        .map(d => ({ place: d.rank, ...parseResultRider(d.rider), memberId: d.bmx_member_id ?? null, profileId: d.bmx_profile_id ?? null }))
         // Place 0 means no finish recorded (e.g. balance bike classes); list those last.
         .sort((a, b) => (a.place || Infinity) - (b.place || Infinity)),
     };
@@ -196,6 +219,39 @@ export async function getTrackRaces(trackId: number, limit = 60): Promise<TrackR
   return (res.data ?? []).map(r => ({
     raceId: r.race_id, date: r.race_begins_on.slice(0, 10), raceType: r.race_name.trim(), hasResults: r.status === 'RESULT',
   }));
+}
+
+// ---- Nationals -------------------------------------------------------------------
+
+export type National = {
+  raceId: number; name: string; begins: string; ends: string;
+  venue: string | null; city: string | null; state: string | null; region: string | null; hasResults: boolean;
+};
+
+// Every national (including the Grands and Canadian nationals) in a season, soonest first.
+// The event list returns at most 5 per page, so a season takes about 8 requests.
+export async function getNationals(year: number): Promise<National[]> {
+  type Row = {
+    id: number; name: string; begins_on: string; ends_on: string; region: string | null; has_results: boolean;
+    track_name: string | null; track_city: string | null; track_state_abbreviation: string | null;
+    temporary_track_name: string | null; temporary_track_city: string | null; temporary_track_state: string | null;
+  };
+  type Res = { total_records?: number; data?: Row[] };
+  const rows: Row[] = [];
+  for (let page = 1; page <= 20; page++) {
+    // With a start date, "past" returns everything from that date on, upcoming races included.
+    const res = await api<Res>(`events/event-list?filter_list=past&event_type=NATIONAL&event_date_from=${year}-01-01&page_number=${page}&page_limit=5`);
+    rows.push(...(res.data ?? []));
+    if (!res.data?.length || page * 5 >= (res.total_records ?? 0)) break;
+  }
+  return rows
+    .filter(r => r.begins_on.startsWith(String(year)))
+    .map(r => ({
+      raceId: r.id, name: r.name.trim(), begins: r.begins_on.slice(0, 10), ends: r.ends_on.slice(0, 10),
+      venue: r.track_name ?? r.temporary_track_name, city: r.track_city ?? r.temporary_track_city,
+      state: r.track_state_abbreviation ?? r.temporary_track_state, region: r.region, hasResults: r.has_results,
+    }))
+    .sort((a, b) => a.begins.localeCompare(b.begins));
 }
 
 // ---- Standings (public /view-points pages) ------------------------------------

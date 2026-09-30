@@ -137,3 +137,14 @@ select {
 #me { scroll-margin-top: 80px; }
 .rider-card h2 a { text-decoration: none; }
 .card-more { display: inline-block; margin-top: 8px; font-weight: 600; color: var(--muted); text-decoration: none; }
+.moto-filter { display: flex; flex-direction: column; gap: 6px; }
+.moto-list [hidden] { display: none !important; }
+.rider-cell { display: flex; flex-direction: column; min-width: 0; }
+.rider-detail { font-weight: 400; }
+.nationals { list-style: none; margin: 0; padding: 0; }
+.nationals li { border-top: 1px solid #24416e; }
+.nationals li:first-child { border-top: none; }
+.nationals a, .nationals .plain { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; text-decoration: none; }
+.nationals .nat-main { display: flex; flex-direction: column; min-width: 0; }
+.nationals .nat-when { color: var(--muted); white-space: nowrap; font-size: 0.9rem; }
+.nationals li.raced strong { color: var(--win); }
