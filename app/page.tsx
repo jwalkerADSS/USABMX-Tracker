@@ -7,6 +7,7 @@ import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
 import { getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
+import { Tour } from './tour';
 import { formatDate, ordinal } from '@/lib/format';
 
 export const maxDuration = 60;
@@ -74,6 +75,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
             );
           })}
           <Link href="/my-riders" className="change-rider">Change my riders</Link>
+          <Tour />
         </main>
       </>
     );
@@ -85,6 +87,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
         {TRACKED.map(r => (
           <RiderCard key={r.profileId} profileId={r.profileId} altProfileIds={r.altProfileIds} memberId={r.memberId} name={r.name} tables={r.tables} />
         ))}
+        <Tour />
       </main>
     </>
   );
@@ -103,6 +106,7 @@ async function TestHome({ q }: { q: string }) {
           <form method="post" action="/api/rider" className="change-rider">
             <button type="submit" className="link">Choose a different rider</button>
           </form>
+          <Tour />
         </main>
       </>
     );

@@ -188,3 +188,24 @@ a.change-rider { display: block; color: var(--muted); font-weight: 600; text-dec
 button.secondary { background: var(--card-2); border-color: var(--card-2); }
 .install-app ol { margin: 12px 0 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 body:has(main.login) .install-app { max-width: 380px; }
+.tour-link { align-self: center; padding: 8px; }
+.tour-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(4, 12, 26, 0.65); }
+.tour-target {
+  position: relative; z-index: 51; border-radius: 10px; scroll-margin-top: 72px;
+  box-shadow: 0 0 0 3px var(--win), 0 0 0 100vmax rgba(4, 12, 26, 0.65);
+}
+.tour-sheet {
+  position: fixed; z-index: 60; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 480px; max-height: 72vh; display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--card-2); border-radius: var(--radius); padding: 14px 16px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.tour-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.tour-body { line-height: 1.4; font-size: 0.95rem; overflow-y: auto; min-height: 0; flex: 1; }
+.tour-body p { margin: 0 0 4px; }
+.tour-body ul { margin: 6px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.tour-buttons { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.tour-buttons button { flex: 1; }
+.tour-buttons span { flex: 1; }
+.tour-sheet.on-top { bottom: auto; top: calc(12px + env(safe-area-inset-top)); }
+.tour-sheet.tall { max-height: 88vh; }
