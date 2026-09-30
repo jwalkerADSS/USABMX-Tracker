@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PasswordInput } from '../password-input';
 
 export const metadata = { title: 'Sign in' };
 
@@ -21,7 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </label>
         <label>
           Password
-          <input name="password" type="password" autoComplete="current-password" required />
+          <PasswordInput name="password" autoComplete="current-password" required />
         </label>
         {next ? <input type="hidden" name="next" value={next} /> : null}
         {error ? <p className="error">{ERRORS[error] ?? ERRORS['1']}</p> : null}

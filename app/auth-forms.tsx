@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { PasswordInput } from './password-input';
 import { adminReset, changeMyPassword, requestReset, signUp, type FormState } from './auth-actions';
 
 export function SignUpForm() {
@@ -17,11 +18,11 @@ export function SignUpForm() {
       </label>
       <label>
         Password
-        <input name="password" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="password" autoComplete="new-password" required minLength={8} />
       </label>
       <label>
         Confirm password
-        <input name="confirm" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="confirm" autoComplete="new-password" required minLength={8} />
       </label>
       <label>
         Email
@@ -82,15 +83,15 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
       {temporary ? <p className="muted">You signed in with a temporary password. Pick your own to keep going.</p> : null}
       <label>
         {temporary ? 'Temporary password' : 'Current password'}
-        <input name="current" type="password" autoComplete="current-password" required />
+        <PasswordInput name="current" autoComplete="current-password" required />
       </label>
       <label>
         New password
-        <input name="password" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="password" autoComplete="new-password" required minLength={8} />
       </label>
       <label>
         Confirm new password
-        <input name="confirm" type="password" autoComplete="new-password" required minLength={8} />
+        <PasswordInput name="confirm" autoComplete="new-password" required minLength={8} />
       </label>
       {state.error ? <p className="error">{state.error}</p> : null}
       <button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save password'}</button>
