@@ -57,6 +57,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   }
   if (account) {
     // Account holders follow up to five riders of their own, chosen after sign-up.
+    if (account.mustChangePassword) redirect('/change-password');
     if (!account.riders.length) redirect('/my-riders?welcome=1');
     const profiles = await Promise.all(account.riders.map(id => getProfile(id).catch(() => null)));
     return (

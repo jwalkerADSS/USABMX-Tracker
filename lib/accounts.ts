@@ -15,6 +15,7 @@ export type Account = {
   passwordHash: string;
   riders: number[]; // USA BMX profile ids, up to MAX_RIDERS
   createdAt: string;
+  mustChangePassword?: boolean; // set by an admin reset
 };
 
 const RESERVED = new Set([TEST_USER, 'admin', 'administrator', 'root', 'support', 'usabmx']);
@@ -99,6 +100,9 @@ export async function setRiders(username: string, riders: number[]): Promise<Acc
 }
 
 // ---- Password reset --------------------------------------------------------------
+// There's no email service. Someone who forgets their password asks for a reset, which emails the admin
+// from their own mail app and is listed on the admin page. The admin sets a temporary password there and
+// emails it back; the rider's family then picks a new password at their next sign-in.
 
 export async function findAccount(usernameOrEmail: string): Promise<Account | null> {
   const s = usernameOrEmail.trim().toLowerCase();
@@ -106,50 +110,47 @@ export async function findAccount(usernameOrEmail: string): Promise<Account | nu
   return username ? getAccount(username) : null;
 }
 
-// A one-time link that works for an hour.
-export async function createResetToken(username: string): Promise<string> {
-  const token = randomBytes(32).toString('base64url');
-  await set(`reset:${token}`, username, { seconds: 60 * 60 });
-  return token;
+export function isAdmin(account: Account | null): boolean {
+  const admins = (process.env.ADMIN_USERNAMES ?? '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
+  return !!account && admins.includes(account.username);
 }
 
-export async function resetTokenUser(token: string): Promise<string | null> {
-  return /^[A-Za-z0-9_-]{20,100}$/.test(token) ? get(`reset:${token}`) : null;
+export type ResetRequest = { username: string; at: string };
+const REQUESTS = 'reset-requests';
+
+export async function resetRequests(): Promise<ResetRequest[]> {
+  return JSON.parse((await get(REQUESTS)) ?? '[]') as ResetRequest[];
 }
 
-export async function resetPassword(token: string, password: string): Promise<Account | string> {
-  const problem = checkPassword(password);
-  if (problem) return problem;
-  const username = await resetTokenUser(token);
-  const account = username ? await getAccount(username) : null;
-  if (!account) return 'That reset link has expired. Ask for a new one.';
-  await del(`reset:${token}`);
+// Recorded only for real accounts, and once per account, so the list stays short.
+export async function requestReset(usernameOrEmail: string): Promise<void> {
+  const account = await findAccount(usernameOrEmail);
+  if (!account) return;
+  const list = (await resetRequests()).filter(r => r.username !== account.username);
+  await set(REQUESTS, JSON.stringify([...list, { username: account.username, at: new Date().toISOString() }].slice(-50)));
+}
+
+// Admin only: a new random password the admin emails to the account holder, who must replace it on sign-in.
+export async function setTemporaryPassword(username: string): Promise<{ account: Account; password: string } | null> {
+  const account = await getAccount(username);
+  if (!account) return null;
+  const password = randomBytes(9).toString('base64url').replace(/[-_]/g, 'x').slice(0, 10);
   account.passwordHash = await hashPassword(password);
+  account.mustChangePassword = true;
   await save(account);
   await del(`fail:${account.username}`);
+  await set(REQUESTS, JSON.stringify((await resetRequests()).filter(r => r.username !== account.username)));
+  return { account, password };
+}
+
+export async function changePassword(username: string, current: string, next: string): Promise<Account | string> {
+  const problem = checkPassword(next);
+  if (problem) return problem;
+  const account = await getAccount(username);
+  if (!account || !(await passwordMatches(current, account.passwordHash))) return 'Your current password isn’t right.';
+  if (current === next) return 'Pick a password different from the current one.';
+  account.passwordHash = await hashPassword(next);
+  delete account.mustChangePassword;
+  await save(account);
   return account;
-}
-
-// Sends through Resend (resend.com) when RESEND_API_KEY is set in Vercel.
-export function emailReady(): boolean {
-  return !!process.env.RESEND_API_KEY;
-}
-
-export async function sendResetEmail(account: Account, link: string): Promise<void> {
-  // Local development: RESEND_API_KEY=console prints the link instead of sending it.
-  if (process.env.RESEND_API_KEY === 'console' && !process.env.VERCEL) {
-    console.log(`Password reset link for ${account.username}: ${link}`);
-    return;
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      from: process.env.MAIL_FROM || 'BMX Tracker <onboarding@resend.dev>',
-      to: [account.email],
-      subject: 'Reset your BMX Tracker password',
-      text: `Hi ${account.displayName},\n\nUse this link to choose a new password. It works once, for the next hour:\n\n${link}\n\nIf you didn't ask for this, you can ignore this email.`,
-    }),
-  });
-  if (!res.ok) throw new Error(`Email failed with ${res.status}`);
 }
