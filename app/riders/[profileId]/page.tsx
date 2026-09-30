@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked } from '@/lib/riders';
-import { formatDate, num, ordinal, pts } from '@/lib/format';
+import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
 import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
@@ -31,6 +31,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   if (!profile) notFound();
   const tracked = findTracked(profileId);
   const name = `${profile.firstName} ${profile.lastName}`;
+  const age = districtAge(profile.birthdate, currentSeason());
 
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
   const last5 = races.slice(0, 5);
@@ -55,7 +56,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
         <section className="card">
           <div className="rider-head">
             <h1>{name}</h1>
-            {profile.level ? <span className="badge">{profile.level}</span> : null}
+            <div className="badges">
+              {age != null ? <span className="badge age">District age {age}</span> : null}
+              {profile.level ? <span className="badge">{profile.level}</span> : null}
+            </div>
           </div>
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
