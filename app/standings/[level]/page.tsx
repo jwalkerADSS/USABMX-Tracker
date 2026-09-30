@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { Nav } from '../../nav';
 import { currentSeason, findTracked } from '@/lib/riders';
-import { formatDate, num } from '@/lib/format';
+import { formatDate, num, ordinal } from '@/lib/format';
 import {
-  LEVEL_LABELS, getNationals, getPoints, getRaceHistory, getStandingsTable, levelOfPointsType, rankPage, tableTitle,
-  type Level, type National,
+  LEVEL_LABELS, getPoints, getProfile, getRiderNationals, getStandingsTable, levelOfPointsType, rankPage, tableTitle,
+  type Level,
 } from '@/lib/usabmx';
 
 export const maxDuration = 60;
@@ -42,14 +43,8 @@ export default async function StandingsPage({ params, searchParams }: Props) {
     table = (await getStandingsTable(level, tracked.tables, year, page + 1)) ?? table;
   }
   if (!table) notFound();
-  // NAG and national points come from the nationals, so those pages also list the season's nationals.
+  // NAG and national points come from the nationals, so those pages also list the nationals the rider raced.
   const showNationals = level === 'nag' || level === 'national';
-  const [nationals, raced] = showNationals
-    ? await Promise.all([
-        getNationals(year).catch(() => null),
-        getRaceHistory(tracked.memberId, year).then(rs => new Set(rs.map(r => r.raceId))).catch(() => new Set<number>()),
-      ])
-    : [null, new Set<number>()];
   const me = table.rows.find(isMe);
   const href = (p: number) => `/standings/${level}?rider=${tracked.profileId}&page=${p}`;
 
@@ -64,7 +59,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
             {me ? ` · ${tracked.name.split(' ')[0]} is ${me.place ? `#${num(me.place)}` : 'unranked'} with ${num(me.points)} pts` : ` · ${tracked.name} ${pageParam ? "isn't on this page" : "isn't ranked here yet"}`}
           </p>
           <Pager page={table.page} lastPage={table.lastPage} href={href} />
-          {showNationals ? <p className="small"><a href="#nationals">{year} nationals and results ↓</a></p> : null}
+          {showNationals ? <p className="small"><a href="#nationals">{tracked.name.split(' ')[0]}&apos;s {year} nationals ↓</a></p> : null}
         </section>
         <section className="card">
           {table.rows.length ? (
@@ -93,7 +88,14 @@ export default async function StandingsPage({ params, searchParams }: Props) {
             A dash means USA BMX lists the rider without a ranking. <a href={table.url}>View on USA BMX</a>
           </p>
         </section>
-        {showNationals ? <NationalsList year={year} nationals={nationals} raced={raced} rider={tracked.name.split(' ')[0]} /> : null}
+        {showNationals ? (
+          <section className="card" id="nationals">
+            <h2>{tracked.name.split(' ')[0]}&apos;s {year} nationals</h2>
+            <Suspense fallback={<p className="muted small">Searching this season&apos;s national results…</p>}>
+              <RiderNationals year={year} name={tracked.name} profileId={tracked.profileId} />
+            </Suspense>
+          </section>
+        ) : null}
       </main>
     </>
   );
@@ -110,40 +112,39 @@ function Pager({ page, lastPage, href }: { page: number; lastPage: number; href:
   );
 }
 
-function NationalsList({ year, nationals, raced, rider }: { year: number; nationals: National[] | null; raced: Set<number>; rider: string }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const racedCount = nationals?.filter(n => raced.has(n.raceId)).length ?? 0;
+// Searching every national's results takes a few seconds the first time, so this streams in after the table.
+async function RiderNationals({ year, name, profileId }: { year: number; name: string; profileId: number }) {
+  const profile = await getProfile(profileId).catch(() => null);
+  const nationals = await getRiderNationals(year, { name, state: profile?.state ?? null }).catch(() => null);
+  const first = name.split(' ')[0];
+  const note = `USA BMX posts only each class's main event at nationals, so a national shows up here when ${first} made a main.`;
+  if (!nationals) return <p className="muted small">USA BMX&apos;s national results didn&apos;t load. Try again in a bit.</p>;
+  if (!nationals.length) return <p className="muted small">No nationals found for {first} this season. {note}</p>;
   return (
-    <section className="card" id="nationals">
-      <h2>{year} nationals</h2>
-      <p className="muted small">
-        {nationals
-          ? `${nationals.length} nationals this season. ${racedCount ? `${rider} raced ${racedCount}, marked in green.` : `${rider} hasn't raced one yet this season.`} Tap one for every moto and finish.`
-          : "USA BMX's race list didn't load. Try again in a bit."}
-      </p>
-      {nationals?.length ? (
-        <ul className="nationals">
-          {nationals.map(n => {
-            const dates = n.begins === n.ends ? formatDate(n.begins) : `${formatDate(n.begins)}–${formatDate(n.ends)}`;
-            const status = n.hasResults ? dates : n.begins > today ? `${dates} · Upcoming` : `${dates} · Results pending`;
-            const where = [n.venue, [n.city, n.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
-            const body = (
-              <>
+    <>
+      <p className="muted small">{note} Tap one for every moto and finish.</p>
+      <ul className="nationals">
+        {nationals.map(n => {
+          const dates = n.begins === n.ends ? formatDate(n.begins) : `${formatDate(n.begins)}–${formatDate(n.ends)}`;
+          const where = [n.venue, [n.city, n.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+          return (
+            <li key={n.raceId}>
+              <Link href={`/events/${n.raceId}?day=${n.finishes[0].raceDayId}`}>
                 <span className="nat-main">
-                  <strong>{n.name}{raced.has(n.raceId) ? ' ✓' : ''}</strong>
+                  <strong>{n.name}</strong>
                   {where ? <span className="muted small">{where}</span> : null}
+                  {n.finishes.map(f => (
+                    <span key={f.raceDayId + f.className} className="small nat-finish">
+                      {formatDate(f.date)}: {f.place ? ordinal(f.place) : '–'} in the {f.className} main{f.totalRiders ? ` (${f.totalRiders} riders)` : ''}
+                    </span>
+                  ))}
                 </span>
-                <span className="nat-when">{status}</span>
-              </>
-            );
-            return (
-              <li key={n.raceId} className={raced.has(n.raceId) ? 'raced' : ''}>
-                {n.hasResults ? <Link href={`/events/${n.raceId}`}>{body}</Link> : <div className="plain">{body}</div>}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-    </section>
+                <span className="nat-when">{dates}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

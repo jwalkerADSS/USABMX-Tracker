@@ -254,6 +254,45 @@ export async function getNationals(year: number): Promise<National[]> {
     .sort((a, b) => a.begins.localeCompare(b.begins));
 }
 
+export type NationalFinish = { raceDayId: number; date: string; className: string; place: number; totalRiders: number | null };
+export type RiderNational = National & { finishes: NationalFinish[] };
+
+// Nationals don't appear in a rider's race history, and their results only list each class's main
+// event finishers, by name and hometown. So a rider's nationals are found by searching every
+// posted national for their name (and home state, to tell apart riders with the same name).
+// Nationals where they didn't make a main can't be found.
+export async function getRiderNationals(year: number, rider: { name: string; state: string | null }): Promise<RiderNational[]> {
+  const name = rider.name.toUpperCase();
+  const state = rider.state?.toUpperCase();
+  const isRider = (r: ResultRider) =>
+    r.name.toUpperCase() === name && (!state || !r.detail || r.detail.toUpperCase().endsWith(`, ${state}`));
+  const posted = (await getNationals(year)).filter(n => n.hasResults);
+  const found = await mapLimit(posted, 6, async n => {
+    const event = await getEvent(n.raceId).catch(() => null);
+    const finishes: NationalFinish[] = [];
+    for (const day of event?.days ?? []) {
+      for (const g of await getRaceDayResults(day.raceDayId).catch(() => [])) {
+        const r = g.riders.find(isRider);
+        if (r) finishes.push({ raceDayId: day.raceDayId, date: day.date, className: g.className, place: r.place, totalRiders: g.totalRiders });
+      }
+    }
+    return { ...n, finishes };
+  });
+  return found.filter(n => n.finishes.length);
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  }));
+  return out;
+}
+
 // ---- Standings (public /view-points pages) ------------------------------------
 
 export type Tables = {
