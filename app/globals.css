@@ -163,6 +163,11 @@ select {
 .signup-cta p { margin: 0; }
 a.button { display: block; text-align: center; text-decoration: none; padding: 12px 16px; border-radius: 10px; font-weight: 700; background: var(--accent); color: #fff; }
 a.button.secondary { background: var(--card-2); }
+.update-banner {
+  position: fixed; z-index: 45; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom));
+  width: calc(100% - 24px); max-width: 480px; padding: 14px 16px; border: none; border-radius: var(--radius);
+  background: var(--win); color: #1a1300; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
 .done-button { margin-top: 12px; }
 .my-riders li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .my-riders form { margin: 0; }
