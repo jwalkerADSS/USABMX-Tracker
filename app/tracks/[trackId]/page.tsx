@@ -68,7 +68,7 @@ export default async function TrackPage({ params, searchParams }: Props) {
             <section className="card">
               <h2>{formatDate(day.date)} · {raceLabel(event?.raceType ?? 'Race')}</h2>
               <p className="muted small">
-                {groups.length} classes · {groups.reduce((n, g) => n + g.riders.length, 0)} riders
+                {groups.length} motos · {groups.reduce((n, g) => n + g.riders.length, 0)} riders
               </p>
               {ours.length ? (
                 <ul className="our-results">
