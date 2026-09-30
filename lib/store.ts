@@ -1,80 +1,94 @@
 import 'server-only';
+import postgres from 'postgres';
 
-// Account storage: a Redis database from Vercel's Storage tab (Upstash), spoken to over its REST API.
-// Connecting the database to the project sets KV_REST_API_URL and KV_REST_API_TOKEN.
+// Account storage: a Postgres database from Vercel's Storage tab (Neon). Connecting the database to the
+// project sets DATABASE_URL. Everything lives in one key/value table, created on first use.
 // AUTH_STORE=memory keeps everything in this process instead, for local testing only (ignored on Vercel).
-const URL_ = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-const TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+const DB_URL = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
 const MEMORY = process.env.AUTH_STORE === 'memory' && !process.env.VERCEL;
 
 export function storeReady(): boolean {
-  return MEMORY || !!(URL_ && TOKEN);
+  return MEMORY || !!DB_URL;
 }
+
+type Row = { value: string; expires: number | null };
 
 // On globalThis because each route bundles its own copy of this module.
-const g = globalThis as { __bmxMemoryStore?: Map<string, { value: string; expires: number | null }> };
+const g = globalThis as { __bmxMemoryStore?: Map<string, Row>; __bmxSql?: Promise<postgres.Sql> };
 const mem = (g.__bmxMemoryStore ??= new Map());
 
-async function redis(args: (string | number)[]): Promise<unknown> {
-  if (MEMORY) return memory(args);
-  if (!URL_ || !TOKEN) throw new Error('Account storage is not connected');
-  const res = await fetch(URL_, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
-    body: JSON.stringify(args.map(String)),
-    cache: 'no-store',
-  });
-  const body = (await res.json()) as { result?: unknown; error?: string };
-  if (!res.ok || body.error) throw new Error(`Account storage error: ${body.error ?? res.status}`);
-  return body.result;
+function db(): Promise<postgres.Sql> {
+  if (!DB_URL) return Promise.reject(new Error('Account storage is not connected'));
+  // One connection per server instance is plenty; prepare: false suits Neon's pooled connection string.
+  return (g.__bmxSql ??= (async () => {
+    const sql = postgres(DB_URL, { max: 1, prepare: false, idle_timeout: 20, onnotice: () => {} });
+    await sql`CREATE TABLE IF NOT EXISTS kv (key text PRIMARY KEY, value text NOT NULL, expires_at timestamptz)`;
+    await sql`DELETE FROM kv WHERE expires_at <= now()`;
+    return sql;
+  })().catch(e => {
+    g.__bmxSql = undefined;
+    throw e;
+  }));
 }
 
-function memory([cmd, key, ...rest]: (string | number)[]): unknown {
-  const k = String(key);
-  const hit = mem.get(k);
-  const live = hit && (hit.expires == null || hit.expires > Date.now()) ? hit : undefined;
-  switch (String(cmd).toUpperCase()) {
-    case 'GET': return live?.value ?? null;
-    case 'DEL': return mem.delete(k) ? 1 : 0;
-    case 'SET': {
-      const opts = rest.slice(1).map(String);
-      if (opts.includes('NX') && live) return null;
-      const ex = opts.indexOf('EX');
-      mem.set(k, { value: String(rest[0]), expires: ex >= 0 ? Date.now() + Number(opts[ex + 1]) * 1000 : null });
-      return 'OK';
-    }
-    case 'INCR': {
-      const n = Number(live?.value ?? 0) + 1;
-      mem.set(k, { value: String(n), expires: live?.expires ?? null });
-      return n;
-    }
-    case 'EXPIRE': {
-      if (live) live.expires = Date.now() + Number(rest[0]) * 1000;
-      return live ? 1 : 0;
-    }
-  }
-  throw new Error(`Unsupported command ${cmd}`);
+function memLive(key: string): Row | undefined {
+  const row = mem.get(key);
+  return row && (row.expires == null || row.expires > Date.now()) ? row : undefined;
 }
+
+const expiry = (seconds?: number) => (seconds ? new Date(Date.now() + seconds * 1000) : null);
 
 export async function get(key: string): Promise<string | null> {
-  return (await redis(['GET', key])) as string | null;
+  if (MEMORY) return memLive(key)?.value ?? null;
+  const sql = await db();
+  const [row] = await sql<{ value: string }[]>`
+    SELECT value FROM kv WHERE key = ${key} AND (expires_at IS NULL OR expires_at > now())`;
+  return row?.value ?? null;
 }
 
 // Returns false when onlyIfNew is set and the key already exists.
 export async function set(key: string, value: string, opts: { onlyIfNew?: boolean; seconds?: number } = {}): Promise<boolean> {
-  const args: (string | number)[] = ['SET', key, value];
-  if (opts.onlyIfNew) args.push('NX');
-  if (opts.seconds) args.push('EX', opts.seconds);
-  return (await redis(args)) === 'OK';
+  if (MEMORY) {
+    if (opts.onlyIfNew && memLive(key)) return false;
+    mem.set(key, { value, expires: expiry(opts.seconds)?.getTime() ?? null });
+    return true;
+  }
+  const sql = await db();
+  const expires = expiry(opts.seconds);
+  // With onlyIfNew, an existing row is replaced only once it has expired.
+  const rows = opts.onlyIfNew
+    ? await sql`
+        INSERT INTO kv (key, value, expires_at) VALUES (${key}, ${value}, ${expires})
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at
+        WHERE kv.expires_at IS NOT NULL AND kv.expires_at <= now()`
+    : await sql`
+        INSERT INTO kv (key, value, expires_at) VALUES (${key}, ${value}, ${expires})
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at`;
+  return rows.count === 1;
 }
 
 export async function del(key: string): Promise<void> {
-  await redis(['DEL', key]);
+  if (MEMORY) {
+    mem.delete(key);
+    return;
+  }
+  const sql = await db();
+  await sql`DELETE FROM kv WHERE key = ${key}`;
 }
 
 // Counts up and starts the expiry on the first hit, for rate limits.
 export async function hit(key: string, seconds: number): Promise<number> {
-  const n = Number(await redis(['INCR', key]));
-  if (n === 1) await redis(['EXPIRE', key, seconds]);
-  return n;
+  if (MEMORY) {
+    const n = Number(memLive(key)?.value ?? 0) + 1;
+    mem.set(key, { value: String(n), expires: n === 1 ? Date.now() + seconds * 1000 : memLive(key)!.expires });
+    return n;
+  }
+  const sql = await db();
+  const [row] = await sql<{ value: string }[]>`
+    INSERT INTO kv (key, value, expires_at) VALUES (${key}, '1', ${expiry(seconds)})
+    ON CONFLICT (key) DO UPDATE SET
+      value = CASE WHEN kv.expires_at IS NOT NULL AND kv.expires_at <= now() THEN '1' ELSE (kv.value::int + 1)::text END,
+      expires_at = CASE WHEN kv.expires_at IS NOT NULL AND kv.expires_at <= now() THEN EXCLUDED.expires_at ELSE kv.expires_at END
+    RETURNING value`;
+  return Number(row.value);
 }
