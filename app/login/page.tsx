@@ -7,15 +7,15 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <h1>BMX Tracker</h1>
       <form method="post" action="/api/login" className="card stack">
         <label>
-          Email
-          <input name="email" type="email" autoComplete="email" required />
+          Email or username
+          <input name="email" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" required />
         </label>
         <label>
           Password
           <input name="password" type="password" autoComplete="current-password" required />
         </label>
         {next ? <input type="hidden" name="next" value={next} /> : null}
-        {error ? <p className="error">That email or password didn&apos;t match.</p> : null}
+        {error ? <p className="error">That email, username or password didn&apos;t match.</p> : null}
         <button type="submit">Sign in</button>
       </form>
     </main>
