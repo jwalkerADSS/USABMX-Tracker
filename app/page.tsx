@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { Nav } from './nav';
-import { TRACKED, currentSeason } from '@/lib/riders';
-import { chosenRider, isTestUser } from '@/lib/session';
+import { redirect } from 'next/navigation';
+import { TRACKED, currentSeason, findTracked } from '@/lib/riders';
+import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
+import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
 import { getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
@@ -42,6 +44,39 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   if (await isTestUser()) return <TestHome q={((await searchParams).q ?? '').trim()} />;
+  const account = await currentAccount();
+  if (!account && (await currentUser())?.startsWith(ACCOUNT_PREFIX)) {
+    return (
+      <>
+        <Nav />
+        <main className="stack">
+          <p className="card muted">Your account couldn&apos;t be loaded. Sign out and sign in again.</p>
+        </main>
+      </>
+    );
+  }
+  if (account) {
+    // Account holders follow up to five riders of their own, chosen after sign-up.
+    if (!account.riders.length) redirect('/my-riders?welcome=1');
+    const profiles = await Promise.all(account.riders.map(id => getProfile(id).catch(() => null)));
+    return (
+      <>
+        <Nav />
+        <main className="stack">
+          {profiles.map((p, i) => {
+            if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
+            // The family's riders keep their clickable standings tiles.
+            const tracked = findTracked(p.profileId);
+            return (
+              <RiderCard key={p.profileId} profileId={tracked?.profileId ?? p.profileId} altProfileIds={tracked?.altProfileIds}
+                memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
+            );
+          })}
+          <Link href="/my-riders" className="change-rider">Change my riders</Link>
+        </main>
+      </>
+    );
+  }
   return (
     <>
       <Nav />

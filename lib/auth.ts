@@ -1,5 +1,5 @@
-// Minimal family sign-in: an allow-listed email plus a shared password, kept in a signed cookie.
-// There is also one guest user, "Test", with its own password, who picks the rider they follow.
+// Sign-in, kept in a signed cookie. Most people have a username account (lib/accounts.ts), stored as "u:<username>".
+// Two older ways still work: an allow-listed email plus the shared family password, and the guest user "Test".
 // Uses Web Crypto so it runs in both middleware (edge) and route handlers.
 
 export const SESSION_COOKIE = 'bmx_session';
@@ -29,10 +29,17 @@ export function allowedEmails(): string[] {
 // The Test user can sign in only while TEST_USER_PASSWORD is set; removing it signs them out everywhere.
 export const TEST_USER = 'test';
 
+export const ACCOUNT_PREFIX = 'u:';
+
 function isAllowed(user: string): boolean {
-  return allowedEmails().includes(user) || (user === TEST_USER && !!process.env.TEST_USER_PASSWORD);
+  return (
+    (user.startsWith(ACCOUNT_PREFIX) && user.length > ACCOUNT_PREFIX.length) ||
+    allowedEmails().includes(user) ||
+    (user === TEST_USER && !!process.env.TEST_USER_PASSWORD)
+  );
 }
 
+// The family email and Test sign-ins; accounts are checked in lib/accounts.ts.
 export function checkCredentials(email: string, password: string): boolean {
   const user = email.trim().toLowerCase();
   const expected = user === TEST_USER ? process.env.TEST_USER_PASSWORD : process.env.APP_PASSWORD;
@@ -40,9 +47,9 @@ export function checkCredentials(email: string, password: string): boolean {
   return isAllowed(user) && timingSafeEqual(password, expected);
 }
 
-// Cookie value: "<email>|<expiry ms>|<signature>"
-export async function createSession(email: string): Promise<string> {
-  const payload = `${email.trim().toLowerCase()}|${Date.now() + SESSION_DAYS * 86_400_000}`;
+// Cookie value: "<who>|<expiry ms>|<signature>"
+export async function createSession(who: string): Promise<string> {
+  const payload = `${who.trim().toLowerCase()}|${Date.now() + SESSION_DAYS * 86_400_000}`;
   return `${payload}|${await hmac(payload)}`;
 }
 
