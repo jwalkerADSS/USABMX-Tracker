@@ -5,6 +5,9 @@ import { indexBuiltAt, indexSize, searchRiders } from '@/lib/search';
 import { num } from '@/lib/format';
 import { currentSeason } from '@/lib/riders';
 import { DISTRICT_CLASSES, getDistrictPlace, type PlateHolder } from '@/lib/usabmx';
+import { describeQuery, parseEventQuery, searchEvents, EVENT_LIMIT, type EventQuery, type EventResult } from '@/lib/events';
+import { formatDate } from '@/lib/format';
+import { raceLabel } from '@/lib/points';
 
 // "NV01 #63", "nv01 63" or "NV01-63": a district and plate number.
 const PLATE = /^([a-z]{2}\d{2})\s*[-#]?\s*#?\s*(\d{1,4})$/i;
@@ -22,6 +25,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   if (/^\d+$/.test(q)) redirect(`/riders/${q}`);
   const plate = q.match(PLATE);
   const season = currentSeason();
+  const eventQuery = !plate ? await parseEventQuery(q) : null;
+  const events = eventQuery && !eventQuery.unknown.length ? await searchEvents(eventQuery, season) : null;
   // Plates are earned by final district place and run the following season.
   const [plateNow, plateNext] = plate
     ? await Promise.all([
@@ -29,17 +34,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         plateHolders(plate[1].toUpperCase(), Number(plate[2]), season),
       ])
     : [[], []];
-  const results = q && !plate ? searchRiders(q) : [];
+  const results = q && !plate && !eventQuery ? searchRiders(q) : [];
 
   return (
     <>
       <Nav back />
       <main className="stack">
         <form className="card search" action="/search">
-          <input name="q" defaultValue={q} placeholder="Rider name or plate, e.g. NV01 #63" autoFocus enterKeyHint="search" />
+          <input name="q" defaultValue={q} placeholder="Rider, plate (NV01 #63) or event (Nevada:Gold Cup)" autoFocus enterKeyHint="search" />
           <button type="submit">Search</button>
         </form>
-        {plate ? (
+        {eventQuery ? (
+          <EventSection query={eventQuery} events={events} year={season} />
+        ) : plate ? (
           <>
             <PlateSection
               title={`Running ${plate[1].toUpperCase()} #${Number(plate[2])} in ${season}`}
@@ -81,6 +88,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             ? `Searching ${num(indexSize)} riders from the national standings and Nevada district standings${indexBuiltAt ? `, updated ${new Date(indexBuiltAt).toLocaleDateString('en-US')}` : ''}.`
             : 'The rider list hasn’t been built yet. It updates every night.'}{' '}
           You can also search a district plate like NV01 #63, or paste a USA BMX profile number.
+          For races this year, search a state, month or race type separated by colons, like California:Nationals,
+          Nevada:Gold Cup, January:Nationals or NV:State:October. Types: Nationals, Gold Cup, Qualifiers, Finals, State, Local, Earned Double, Warnicke, Race for Life.
         </p>
       </main>
     </>
@@ -107,6 +116,68 @@ function PlateSection({ title, note, holders, year }: { title: string; note: str
       ) : (
         <p className="muted">Nobody holds that number in any class.</p>
       )}
+    </section>
+  );
+}
+
+function EventSection({ query, events, year }: { query: EventQuery; events: { events: EventResult[]; truncated: boolean | 'partial' } | null; year: number }) {
+  if (query.unknown.length || !events) {
+    return (
+      <p className="card muted">
+        Didn&apos;t recognize &ldquo;{query.unknown.join('”, “')}&rdquo;. Use a state (Nevada or NV), a month (January) or a race type
+        (Nationals, Gold Cup, Qualifiers, Finals, State, Local), separated by colons.
+      </p>
+    );
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const months = new Map<string, EventResult[]>();
+  for (const e of events.events) {
+    const m = new Date(e.begins + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });
+    months.set(m, [...(months.get(m) ?? []), e]);
+  }
+  return (
+    <section className="card">
+      <h2>{describeQuery(query)}, {year}</h2>
+      <p className="muted small">
+        {events.events.length ? `${events.events.length} race${events.events.length === 1 ? '' : 's'}, past and upcoming.` : 'No races found.'}
+        {events.truncated === 'partial'
+          ? ` Only the latest ${EVENT_LIMIT} races were checked, so some may be missing. Add a state or month to see them all.`
+          : events.truncated ? ` Showing the latest ${EVENT_LIMIT}. Add a state, month or type to narrow it.` : ''}
+      </p>
+      {[...months].map(([month, list]) => (
+        <div key={month} className="event-month">
+          <h3>{month}</h3>
+          <ul className="nationals">
+            {list.map(e => {
+              const dates = e.begins === e.ends ? formatDate(e.begins) : `${formatDate(e.begins)}–${formatDate(e.ends)}`;
+              const where = [e.venue, [e.city, e.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+              const status = e.hasResults ? 'Results' : e.begins >= today ? 'Upcoming' : 'Results pending';
+              const title = /national/i.test(e.name) ? e.name : raceLabel(e.name);
+              const body = (
+                <>
+                  <span className="nat-main">
+                    <strong>{title}</strong>
+                    {where ? <span className="muted small">{where}</span> : null}
+                    <span className="small event-tags">
+                      {[e.kind, e.region ? `${e.region} region` : null, status].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  <span className="nat-when">{dates}</span>
+                </>
+              );
+              return (
+                <li key={e.raceId} className={e.hasResults ? '' : 'upcoming'}>
+                  {e.hasResults ? (
+                    <Link href={`/events/${e.raceId}`}>{body}</Link>
+                  ) : (
+                    <a href={`https://www.usabmx.com/events/${e.raceId}`} target="_blank" rel="noreferrer">{body}</a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

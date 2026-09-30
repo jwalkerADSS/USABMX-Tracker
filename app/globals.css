@@ -124,6 +124,9 @@ select {
 .nationals .nat-main { display: flex; flex-direction: column; min-width: 0; }
 .nationals .nat-when { color: var(--muted); white-space: nowrap; font-size: 0.9rem; }
 .nationals .nat-finish { color: var(--win); font-weight: 600; }
+.event-month h3 { margin: 14px 0 2px; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.event-tags { color: var(--muted); }
+.nationals li.upcoming .event-tags { color: #7fb2ff; }
 .plate-results { padding: 0; margin-top: 6px; }
 .results .plain { display: flex; flex-direction: column; padding: 10px 0; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
