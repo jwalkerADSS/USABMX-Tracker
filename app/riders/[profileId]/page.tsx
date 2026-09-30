@@ -101,7 +101,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <p className="muted">No races in {year} yet.</p>
           )}
           <p className="muted small">
-            Points are worked out from the USA BMX rule book: finish points plus one point per rider in the class, times the
+            Points are worked out from the USA BMX rule book: finish points plus one point per rider in the moto, times the
             race&apos;s multiplier. USA BMX doesn&apos;t publish points per race, so season totals can differ slightly.
           </p>
         </section>
