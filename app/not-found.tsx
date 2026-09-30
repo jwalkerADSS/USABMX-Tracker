@@ -7,8 +7,8 @@ export default function NotFound() {
       <Nav back />
       <main className="stack">
         <section className="card">
-          <h1>Rider not found</h1>
-          <p className="muted">USA BMX has no rider with that profile number. Try <Link href="/search">searching by name</Link>.</p>
+          <h1>Not found</h1>
+          <p className="muted">USA BMX has nothing under that number. Try <Link href="/search">searching by name</Link>.</p>
         </section>
       </main>
     </>

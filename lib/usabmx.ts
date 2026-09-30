@@ -116,27 +116,85 @@ export async function getRaceHistory(memberId: number, year: number): Promise<Ra
   return races.sort((a, b) => b.date.localeCompare(a.date));
 }
 
+// ---- Events, race days and results ------------------------------------------
+
+export type RaceDay = { raceDayId: number; date: string; name: string };
+export type EventInfo = { raceId: number; trackId: number | null; trackName: string | null; raceType: string | null; days: RaceDay[] };
+
+// /events/{raceId}/results lists the event's race days (multi-day events have several) and its track.
+export async function getEvent(raceId: number): Promise<EventInfo> {
+  const pp = await pageProps(`/events/${raceId}/results`);
+  const ev = pp.eventDetails ?? {};
+  const days: { race_day_id: number; name: string | null; occurs_on: string }[] = pp.raceName ?? [];
+  return {
+    raceId,
+    trackId: ev.bmx_track_id ?? null,
+    trackName: ev.track_name ?? null,
+    raceType: ev.name?.trim() ?? null,
+    days: days
+      .map(d => ({ raceDayId: d.race_day_id, date: d.occurs_on.slice(0, 10), name: (d.name ?? '').trim() }))
+      .sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+
+export type ResultRider = { place: number; name: string; memberId: number; profileId: number | null };
+// Group names look like "10 Intermediate / District / Inter": class, points type, skill.
+export type ResultGroup = { name: string; className: string; pointsType: string | null; riders: ResultRider[] };
+
+export async function getRaceDayResults(raceDayId: number): Promise<ResultGroup[]> {
+  type Res = { data?: { rider_result?: { race_groups: { name: string; details: { rider: string; rank: number; bmx_member_id: number; bmx_profile_id: number | null }[] }[] } } };
+  const res = await api<Res>(`v2/events/results/${raceDayId}`);
+  return (res.data?.rider_result?.race_groups ?? []).map(g => {
+    const [className, pointsType] = g.name.split(' / ').map(x => x.trim());
+    return {
+      name: g.name,
+      className: className || g.name,
+      pointsType: pointsType || null,
+      riders: g.details
+        .map(d => ({ place: d.rank, name: titleCase(d.rider), memberId: d.bmx_member_id, profileId: d.bmx_profile_id }))
+        .sort((a, b) => a.place - b.place),
+    };
+  });
+}
+
 // ---- Who they raced against ----------------------------------------------------
 
-export type FieldEntry = { place: number; name: string; memberId: number; profileId: number | null; self: boolean };
-export type RaceField = { moto: string | null; field: FieldEntry[] | null };
+export type FieldEntry = ResultRider & { self: boolean };
+export type RaceField = { trackId: number | null; moto: string | null; field: FieldEntry[] | null };
 
 export async function getRaceField(race: Race, memberId: number): Promise<RaceField> {
-  // /events/{raceId}/results lists the event's race days; results are keyed by race_day_id.
-  const pp = await pageProps(`/events/${race.raceId}/results`);
-  const days: { race_day_id: number; occurs_on: string }[] = pp.raceName ?? [];
-  const day = days.find(d => d.occurs_on?.slice(0, 10) === race.date) ?? days[0];
-  if (!day) return { moto: null, field: null };
-  type Res = { data?: { rider_result?: { race_groups: { name: string; details: { rider: string; rank: number; bmx_member_id: number; bmx_profile_id: number | null }[] }[] } } };
-  const res = await api<Res>(`v2/events/results/${day.race_day_id}`);
-  const group = res.data?.rider_result?.race_groups.find(g => g.details.some(d => d.bmx_member_id === memberId));
-  if (!group) return { moto: null, field: null };
+  const event = await getEvent(race.raceId);
+  const day = event.days.find(d => d.date === race.date) ?? event.days[0];
+  if (!day) return { trackId: event.trackId, moto: null, field: null };
+  const group = (await getRaceDayResults(day.raceDayId)).find(g => g.riders.some(r => r.memberId === memberId));
+  if (!group) return { trackId: event.trackId, moto: null, field: null };
   return {
-    moto: group.name,
-    field: group.details.map(d => ({
-      place: d.rank, name: titleCase(d.rider), memberId: d.bmx_member_id, profileId: d.bmx_profile_id, self: d.bmx_member_id === memberId,
-    })),
+    trackId: event.trackId,
+    moto: group.className,
+    field: group.riders.map(r => ({ ...r, self: r.memberId === memberId })),
   };
+}
+
+// ---- Tracks ---------------------------------------------------------------------
+
+export type Track = { trackId: number; name: string; city: string | null; state: string | null };
+
+export async function getTrack(trackId: number): Promise<Track | null> {
+  const pp = await pageProps(`/tracks/find-tracks/${trackId}`).catch(() => null);
+  const t = pp?.track;
+  if (!t) return null;
+  return { trackId, name: t.name, city: t.city ?? null, state: t.state_abbreviation ?? null };
+}
+
+export type TrackRace = { raceId: number; date: string; raceType: string; hasResults: boolean };
+
+// Newest first. Races whose results haven't been imported yet say "Result Pending".
+export async function getTrackRaces(trackId: number, limit = 60): Promise<TrackRace[]> {
+  type Res = { data?: { race_begins_on: string; race_id: number; race_name: string; status: string }[] };
+  const res = await api<Res>(`microsites/results?bmx_track_id=${trackId}&page=1&limit=${limit}`);
+  return (res.data ?? []).map(r => ({
+    raceId: r.race_id, date: r.race_begins_on.slice(0, 10), raceType: r.race_name.trim(), hasResults: r.status === 'RESULT',
+  }));
 }
 
 // ---- Standings (public /view-points pages) ------------------------------------
@@ -172,6 +230,7 @@ function tableUrl(level: Level, t: Tables, year: number): string | null {
 type StandingRow = {
   place: number; points: number; bmxMemberId?: number;
   rider: { profile_id: number | null; first_name: string; last_name: string };
+  age_group?: string;
 };
 
 async function standingsPage(url: string, page: number): Promise<{ rows: StandingRow[]; lastPage: number }> {
@@ -228,6 +287,29 @@ export async function getStanding(level: Level, tables: Tables, year: number, ri
     if (row) gaps.push({ place: target, name: titleCase(`${row.rider.first_name} ${row.rider.last_name}`), points: row.points, pointsBehind: row.points - me.points });
   }
   return { ...base, found: true, place: me.place, points: me.points, gaps };
+}
+
+// ---- District plates ---------------------------------------------------------
+
+export const DISTRICT_CLASSES = ['Boys', 'Girls', 'Cruiser', 'Girl Cruiser'] as const;
+export type PlateHolder = { className: string; name: string; profileId: number | null; memberId: number | null; ageGroup: string | null; points: number };
+
+// Who sits at `place` in a district table. Riders the site hasn't ranked show place 0 and are mixed in
+// by points, so the place can spill onto the page after the one it would normally be on.
+export async function getDistrictPlace(district: string, className: string, year: number, place: number): Promise<PlateHolder | null> {
+  const e = encodeURIComponent;
+  const url = `/view-points/district?year=${year}&sanction=USA&district=${e(district)}&class=${e(className)}`;
+  for (let page = Math.ceil(place / PER_PAGE); ; page++) {
+    const { rows, lastPage } = await standingsPage(url, page);
+    const row = rows.find(r => r.place === place);
+    if (row) {
+      return {
+        className, name: titleCase(`${row.rider.first_name} ${row.rider.last_name}`), profileId: row.rider.profile_id,
+        memberId: row.bmxMemberId ?? null, ageGroup: row.age_group ?? null, points: row.points,
+      };
+    }
+    if (!rows.length || page >= lastPage || Math.max(...rows.map(r => r.place)) > place) return null;
+  }
 }
 
 // ---- National standings, used to build the name search index --------------------
