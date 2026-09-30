@@ -5,7 +5,7 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked } from '@/lib/riders';
 import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
+  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding, getTrackIds,
   type FieldEntry, type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
@@ -39,7 +39,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   // Only this season's races can be compared with riders' current levels.
   const thisSeason = year === currentSeason();
   const raised = thisSeason ? raisedRaces(races, profile.level) : new Set<Race>();
-  const [standings, fields] = await Promise.all([
+  const [standings, fields, trackIds] = await Promise.all([
     tracked
       ? Promise.all((Object.keys(LEVEL_LABELS) as Level[]).map(level =>
           getStanding(level, tracked.tables, year, {
@@ -47,6 +47,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           }, points).catch(() => null)))
       : Promise.resolve([]),
     Promise.all(last5.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
+    getTrackIds(races),
   ]);
 
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
@@ -55,8 +56,6 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const tracks = winsByTrack(races);
   const top = tracks[0];
   const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
-  // Track pages need the USA BMX track id, which only the recent races have looked up.
-  const trackIds = new Map(last5.map((r, i) => [r.track, fields[i]?.trackId] as const).filter(([, id]) => id));
 
   return (
     <>

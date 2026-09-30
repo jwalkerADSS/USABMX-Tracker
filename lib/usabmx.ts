@@ -208,6 +208,16 @@ export async function getRaceField(race: Race, memberId: number): Promise<RaceFi
 
 // ---- Tracks ---------------------------------------------------------------------
 
+// Race history names each race's track but not its id, so look the id up from one race at each track.
+// Races are newest first, so the most recent race at a track stands for it.
+export async function getTrackIds(races: Race[]): Promise<Map<string, number>> {
+  const byTrack = new Map<string, number>();
+  for (const r of races) if (!byTrack.has(r.track)) byTrack.set(r.track, r.raceId);
+  const ids = await Promise.all([...byTrack].map(([track, raceId]) =>
+    getEvent(raceId).then(e => [track, e.trackId] as const, () => [track, null] as const)));
+  return new Map(ids.filter((x): x is readonly [string, number] => x[1] != null));
+}
+
 export type Track = { trackId: number; name: string; city: string | null; state: string | null };
 
 export async function getTrack(trackId: number): Promise<Track | null> {

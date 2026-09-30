@@ -5,10 +5,10 @@ import { TRACKED, currentSeason, findTracked } from '@/lib/riders';
 import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
-import { getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
+import { getEvent, getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
 import { Tour } from './tour';
-import { formatDate, ordinal } from '@/lib/format';
+import { districtAge, formatDate, ordinal } from '@/lib/format';
 
 export const maxDuration = 60;
 
@@ -21,11 +21,15 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
     : null;
   const wins = races.filter(r => r.finish === 1).length;
   const last = races[0];
+  const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
+  // District age (the age the rider turns this year) goes with the level, the way classes are named: "10 Inter".
+  const age = districtAge(profile?.birthdate ?? null, year);
+  const badge = [age, profile?.level].filter(x => x != null).join(' ');
   return (
     <section className="card rider-card">
       <div className="rider-head">
         <h2><Link href={`/riders/${profileId}`}>{profile ? `${profile.firstName} ${profile.lastName}` : name} ›</Link></h2>
-        {profile?.level ? <span className="badge">{profile.level}</span> : null}
+        {badge ? <span className="badge">{badge}</span> : null}
       </div>
       {profile?.homeTrack ? <p className="muted">{profile.homeTrack}</p> : null}
       <RankRow points={points} profileId={tables ? profileId : undefined} goldCup={goldCup} />
@@ -35,7 +39,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
       </p>
       {last ? (
         <p className="muted small">
-          Last race {formatDate(last.date)} at {last.track}: {ordinal(last.finish)} of {last.riders}
+          Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{last.track}</Link> : last.track}: {ordinal(last.finish)} of {last.riders}
         </p>
       ) : null}
       <Link href={`/riders/${profileId}`} className="card-more">Races, points and gaps ›</Link>

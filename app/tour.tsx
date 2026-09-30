@@ -19,8 +19,8 @@ const STEPS: Step[] = [
   },
   {
     target: '.rider-card .badge',
-    title: 'Skill level',
-    body: 'Riders race against others the same age and skill level. Novice is where everyone starts, then Intermediate, then Expert. Riders move up a level as they win more races.',
+    title: 'Age and skill level',
+    body: 'Riders race against others the same age and skill level. The number is the age the rider turns this year, which the standings use. Novice is where everyone starts, then Intermediate, then Expert. Riders move up a level as they win more races.',
   },
   {
     target: '.rider-card .ranks',
