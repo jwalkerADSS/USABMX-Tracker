@@ -14,6 +14,7 @@ export const metadata = { title: 'My riders' };
 export default async function MyRidersPage({ searchParams }: { searchParams: Promise<{ q?: string; welcome?: string }> }) {
   const account = await currentAccount();
   if (!account) redirect('/');
+  if (account.mustChangePassword) redirect('/change-password');
   const { q: rawQ, welcome } = await searchParams;
   const q = (rawQ ?? '').trim();
   const mine = await Promise.all(account.riders.map(async id => ({ id, profile: await getProfile(id).catch(() => null) })));
@@ -50,6 +51,7 @@ export default async function MyRidersPage({ searchParams }: { searchParams: Pro
             </ul>
           ) : null}
           {mine.length ? <Link href="/" className="button done-button">Done</Link> : null}
+          <p className="small"><Link href="/change-password" className="muted">Change password</Link></p>
         </section>
         {full ? (
           <p className="card muted">You&apos;re following {MAX_RIDERS} riders. Remove one to add another.</p>

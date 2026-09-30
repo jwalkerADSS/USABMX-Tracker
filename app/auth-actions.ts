@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { timingSafeEqual } from 'node:crypto';
 import {
-  MAX_RIDERS, createAccount, createResetToken, emailReady, findAccount, resetPassword, sendResetEmail, setRiders,
+  MAX_RIDERS, changePassword, createAccount, isAdmin, requestReset as recordResetRequest, setRiders, setTemporaryPassword,
 } from '@/lib/accounts';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { currentAccount, startSession } from '@/lib/session';
@@ -12,7 +12,7 @@ import { hit, storeReady } from '@/lib/store';
 import { findTracked } from '@/lib/riders';
 import { getProfile } from '@/lib/usabmx';
 
-export type FormState = { error?: string; done?: boolean; username?: string; email?: string };
+export type FormState = { error?: string; done?: boolean; username?: string; email?: string; mailto?: string; password?: string };
 
 function sameCode(given: string, expected: string): boolean {
   const a = Buffer.from(given.trim());
@@ -40,38 +40,42 @@ export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   redirect('/my-riders?welcome=1');
 }
 
-// The link in the email points at the live site, never at whatever host the request claimed.
-async function siteUrl(): Promise<string> {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  const h = await headers();
-  return `${h.get('x-forwarded-proto') ?? 'http'}://${h.get('host')}`;
-}
-
+// "Forgot password": lists the request on the admin page, then hands back an email to the admin for the person to
+// send from their own mail app, since the site has no email service.
 export async function requestReset(_: FormState, form: FormData): Promise<FormState> {
-  const who = String(form.get('who') ?? '').trim();
-  if (!storeReady() || !emailReady()) {
-    return { error: 'Password reset emails aren’t set up on this site yet. Ask the person who runs it to help.' };
-  }
-  if (!who) return { error: 'Enter your username or email.' };
-  // Same answer whether or not the account exists, so this can't be used to find accounts.
-  if ((await hit(`resetreq:${who.toLowerCase()}`, 60 * 60)) <= 5) {
-    const account = await findAccount(who).catch(() => null);
-    if (account) {
-      const token = await createResetToken(account.username);
-      await sendResetEmail(account, `${await siteUrl()}/reset?token=${token}`).catch(e => console.error('Reset email failed', e.message));
-    }
-  }
-  return { done: true };
+  const username = String(form.get('username') ?? '').trim();
+  if (!storeReady()) return { error: 'Accounts aren’t set up on this site yet.' };
+  if (!username) return { error: 'Enter your username.' };
+  if ((await hit(`resetreq:${await clientIp()}`, 60 * 60)) <= 10) await recordResetRequest(username).catch(() => {});
+  const admin = process.env.ADMIN_EMAIL;
+  const mailto = admin
+    ? `mailto:${admin}?subject=${encodeURIComponent('BMX Tracker password reset')}&body=${encodeURIComponent(
+        `Hi, please reset the BMX Tracker password for username ${username}. Thanks!`)}`
+    : undefined;
+  return { done: true, username, mailto };
 }
 
-export async function chooseNewPassword(_: FormState, form: FormData): Promise<FormState> {
-  const password = String(form.get('password') ?? '');
-  if (password !== String(form.get('confirm') ?? '')) return { error: 'The two passwords don’t match.' };
-  const account = await resetPassword(String(form.get('token') ?? ''), password);
-  if (typeof account === 'string') return { error: account };
-  await startSession(ACCOUNT_PREFIX + account.username);
+export async function changeMyPassword(_: FormState, form: FormData): Promise<FormState> {
+  const account = await currentAccount();
+  if (!account) redirect('/login');
+  const next = String(form.get('password') ?? '');
+  if (next !== String(form.get('confirm') ?? '')) return { error: 'The two new passwords don’t match.' };
+  const result = await changePassword(account.username, String(form.get('current') ?? ''), next);
+  if (typeof result === 'string') return { error: result };
   redirect('/');
+}
+
+// Admin page: set a temporary password and get an email ready to send it to the account holder.
+export async function adminReset(_: FormState, form: FormData): Promise<FormState> {
+  if (!isAdmin(await currentAccount())) return { error: 'Only the admin can do that.' };
+  const result = await setTemporaryPassword(String(form.get('username') ?? '').trim().toLowerCase());
+  if (!result) return { error: 'No account with that username.' };
+  const { account, password } = result;
+  const body = `Hi ${account.displayName},\n\nYour BMX Tracker password was reset. Sign in with username ${account.displayName} and this temporary password:\n\n${password}\n\nYou'll be asked to choose a new password right after.`;
+  return {
+    done: true, username: account.displayName, email: account.email, password,
+    mailto: `mailto:${account.email}?subject=${encodeURIComponent('Your BMX Tracker password')}&body=${encodeURIComponent(body)}`,
+  };
 }
 
 export async function addRider(form: FormData): Promise<void> {

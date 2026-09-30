@@ -169,3 +169,10 @@ a.button.secondary { background: var(--card-2); }
 .choose-results button.choose:disabled { opacity: 0.6; cursor: default; }
 a.change-rider { display: block; color: var(--muted); font-weight: 600; text-decoration: none; }
 .card.stack { display: flex; }
+.admin-requests li { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; }
+.admin-reset { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.admin-reset input { flex: 1 1 160px; min-width: 0; }
+.admin-reset button { flex: 1 1 auto; }
+.admin-reset .error { flex-basis: 100%; }
+.admin-result { gap: 8px; }
+.temp-password { font-size: 1.1rem; background: var(--card-2); padding: 2px 8px; border-radius: 6px; user-select: all; }
