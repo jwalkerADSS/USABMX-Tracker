@@ -70,14 +70,28 @@ const STEPS: Step[] = [
     body: 'Add or remove the riders on this page, up to 5.',
   },
   {
-    target: '.tour-link',
+    target: '.tour-help',
     title: 'That’s it!',
-    body: 'Tap “How this app works” at the bottom of this page any time to see this tour again.',
+    body: 'Tap the ? next to BMX Tracker any time to see this tour again.',
   },
 ];
 
-// A short walk through the landing page. It opens by itself on a device's first visit, and from the
-// "How this app works" link after that.
+const OPEN_TOUR = 'bmx-tour';
+
+// The ? next to "BMX Tracker" at the top. On the landing page it opens the tour there; anywhere else it goes to
+// the landing page and opens it (see Tour).
+export function TourHelp() {
+  const open = () => {
+    if (location.pathname === '/' && document.querySelector('.rider-card')) dispatchEvent(new Event(OPEN_TOUR));
+    else location.href = '/?tour=1';
+  };
+  return (
+    <button type="button" className="tour-help" onClick={open} aria-label="How this app works" title="How this app works">?</button>
+  );
+}
+
+// A short walk through the landing page. It opens by itself on a device's first visit, and from the ? at the top
+// (TourHelp) after that.
 export function Tour() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [at, setAt] = useState(-1);
@@ -99,7 +113,11 @@ export function Tour() {
     try {
       seen = !!localStorage.getItem(SEEN);
     } catch {}
-    if (!seen) start();
+    const asked = new URLSearchParams(location.search).get('tour') === '1';
+    if (asked) history.replaceState(null, '', location.pathname);
+    if (!seen || asked) start();
+    addEventListener(OPEN_TOUR, start);
+    return () => removeEventListener(OPEN_TOUR, start);
   }, [start]);
 
   // Spotlight the step's part of the page and scroll it into view.
@@ -124,7 +142,6 @@ export function Tour() {
   const last = at === steps.length - 1;
   return (
     <>
-      <button type="button" className="link tour-link" onClick={start}>How this app works</button>
       {step ? (
         <>
           {step.target ? null : <div className="tour-backdrop" onClick={close} />}
