@@ -113,3 +113,5 @@ select {
 .group-riders li.ours { color: var(--win); font-weight: 700; }
 .place { min-width: 36px; color: var(--muted); }
 .group-riders li.ours .place { color: var(--win); }
+.plate-results { padding: 0; margin-top: 6px; }
+.results .plain { display: flex; flex-direction: column; padding: 10px 0; }

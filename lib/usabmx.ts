@@ -230,6 +230,7 @@ function tableUrl(level: Level, t: Tables, year: number): string | null {
 type StandingRow = {
   place: number; points: number; bmxMemberId?: number;
   rider: { profile_id: number | null; first_name: string; last_name: string };
+  age_group?: string;
 };
 
 async function standingsPage(url: string, page: number): Promise<{ rows: StandingRow[]; lastPage: number }> {
@@ -286,6 +287,29 @@ export async function getStanding(level: Level, tables: Tables, year: number, ri
     if (row) gaps.push({ place: target, name: titleCase(`${row.rider.first_name} ${row.rider.last_name}`), points: row.points, pointsBehind: row.points - me.points });
   }
   return { ...base, found: true, place: me.place, points: me.points, gaps };
+}
+
+// ---- District plates ---------------------------------------------------------
+
+export const DISTRICT_CLASSES = ['Boys', 'Girls', 'Cruiser', 'Girl Cruiser'] as const;
+export type PlateHolder = { className: string; name: string; profileId: number | null; memberId: number | null; ageGroup: string | null; points: number };
+
+// Who sits at `place` in a district table. Riders the site hasn't ranked show place 0 and are mixed in
+// by points, so the place can spill onto the page after the one it would normally be on.
+export async function getDistrictPlace(district: string, className: string, year: number, place: number): Promise<PlateHolder | null> {
+  const e = encodeURIComponent;
+  const url = `/view-points/district?year=${year}&sanction=USA&district=${e(district)}&class=${e(className)}`;
+  for (let page = Math.ceil(place / PER_PAGE); ; page++) {
+    const { rows, lastPage } = await standingsPage(url, page);
+    const row = rows.find(r => r.place === place);
+    if (row) {
+      return {
+        className, name: titleCase(`${row.rider.first_name} ${row.rider.last_name}`), profileId: row.rider.profile_id,
+        memberId: row.bmxMemberId ?? null, ageGroup: row.age_group ?? null, points: row.points,
+      };
+    }
+    if (!rows.length || page >= lastPage || Math.max(...rows.map(r => r.place)) > place) return null;
+  }
 }
 
 // ---- National standings, used to build the name search index --------------------
