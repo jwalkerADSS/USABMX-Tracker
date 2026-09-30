@@ -3,12 +3,12 @@ import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked } from '@/lib/riders';
-import { formatDate, num, ordinal, pts } from '@/lib/format';
+import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
 import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding,
   type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
-import { racePoints } from '@/lib/points';
+import { raceLabel, racePoints } from '@/lib/points';
 
 export const maxDuration = 60;
 
@@ -31,6 +31,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   if (!profile) notFound();
   const tracked = findTracked(profileId);
   const name = `${profile.firstName} ${profile.lastName}`;
+  const age = districtAge(profile.birthdate, currentSeason());
 
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
   const last5 = races.slice(0, 5);
@@ -55,7 +56,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
         <section className="card">
           <div className="rider-head">
             <h1>{name}</h1>
-            {profile.level ? <span className="badge">{profile.level}</span> : null}
+            <div className="badges">
+              {age != null ? <span className="badge age">District age {age}</span> : null}
+              {profile.level ? <span className="badge">{profile.level}</span> : null}
+            </div>
           </div>
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
@@ -97,7 +101,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <p className="muted">No races in {year} yet.</p>
           )}
           <p className="muted small">
-            Points are worked out from the USA BMX rule book: finish points plus one point per rider in the class, times the
+            Points are worked out from the USA BMX rule book: finish points plus one point per rider in the moto, times the
             race&apos;s multiplier. USA BMX doesn&apos;t publish points per race, so season totals can differ slightly.
           </p>
         </section>
@@ -145,9 +149,10 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           <div className="race-title">
             <strong>{field.trackId ? <Link href={`/tracks/${field.trackId}`}>{race.track}</Link> : race.track}</strong>
             {points ? <span className="race-points">+{pts(points.district)}</span> : null}
+
           </div>
           <p className="muted small">
-            {formatDate(race.date)} · {race.raceType} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
           </p>
           {points && (points.state != null || points.goldCup != null) ? (
             <p className="muted small">
@@ -164,7 +169,7 @@ function RaceItem({ race, field }: { race: Race; field: RaceField }) {
           {opponents.map((o, i) => (
             <span key={o.memberId}>
               {i ? ', ' : ''}
-              {o.profileId ? <Link href={`/riders/${o.profileId}`}>{o.name}</Link> : o.name} ({ordinal(o.place)})
+              {o.profileId ? <Link href={`/riders/${o.profileId}`}>{o.name}</Link> : o.name}{o.place ? ` (${ordinal(o.place)})` : ''}
             </span>
           ))}
         </p>

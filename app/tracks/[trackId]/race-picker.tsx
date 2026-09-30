@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { TrackRace } from '@/lib/usabmx';
+import { raceLabel } from '@/lib/points';
 
 // Race-date dropdown that opens the chosen race straight away.
 export function RacePicker({ trackId, races, selected }: { trackId: number; races: TrackRace[]; selected: number }) {
@@ -14,7 +15,7 @@ export function RacePicker({ trackId, races, selected }: { trackId: number; race
           <option key={r.raceId} value={r.raceId} disabled={!r.hasResults}>
             {new Date(r.date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
             {' · '}
-            {r.raceType}
+            {raceLabel(r.raceType, true)}
             {r.hasResults ? '' : ' (results pending)'}
           </option>
         ))}
