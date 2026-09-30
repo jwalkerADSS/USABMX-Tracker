@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { ACCOUNT_PREFIX, SESSION_COOKIE, SESSION_DAYS, TEST_USER, checkCredentials, createSession } from '@/lib/auth';
+import { ACCOUNT_PREFIX, SESSION_COOKIE, TEST_USER, checkCredentials, createSession, sessionCookie } from '@/lib/auth';
 import { signInAccount, touchAccount, trialEnds, wasRemoved } from '@/lib/accounts';
 import { storeReady } from '@/lib/store';
 
@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
   const username = String(form.get('username') ?? '').trim();
   const password = String(form.get('password') ?? '');
   const next = String(form.get('next') ?? '/');
+  const remember = form.get('remember') === 'on';
   // Only same-site paths. Browsers read a backslash as a slash, so "/\evil.com" would leave the site.
   const safeNext = next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/';
 
@@ -35,15 +36,13 @@ export async function POST(req: NextRequest) {
     who = ACCOUNT_PREFIX + account.username;
     await touchAccount(account.username).catch(() => {});
     // After an admin reset, the temporary password has to be replaced first.
-    if (account.mustChangePassword) return signedIn(req, who, '/change-password', trial);
+    if (account.mustChangePassword) return signedIn(req, who, '/change-password', trial, remember);
   }
-  return signedIn(req, who, safeNext, trial);
+  return signedIn(req, who, safeNext, trial, remember);
 }
 
-async function signedIn(req: NextRequest, who: string, to: string, trial?: number) {
+async function signedIn(req: NextRequest, who: string, to: string, trial: number | undefined, remember: boolean) {
   const res = NextResponse.redirect(new URL(to, req.url), 303);
-  res.cookies.set(SESSION_COOKIE, await createSession(who, trial), {
-    httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86_400,
-  });
+  res.cookies.set(SESSION_COOKIE, await createSession(who, trial, remember), sessionCookie(remember));
   return res;
 }

@@ -50,6 +50,8 @@ button, input {
 button { background: var(--accent); border-color: var(--accent); font-weight: 700; cursor: pointer; }
 button.link { background: none; border: none; padding: 0; color: var(--muted); font-weight: 600; }
 label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+label.check { flex-direction: row; align-items: center; gap: 10px; font-weight: 500; }
+label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
 
 .login { max-width: 380px; padding-top: 12vh; }
 .login h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }
