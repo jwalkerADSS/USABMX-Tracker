@@ -85,7 +85,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
                 memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
             );
           })}
-          <Link href="/my-riders" className="change-rider">Change my riders</Link>
+          <Link href="/change-password" className="change-rider">Change password</Link>
           <Tour />
         </main>
       </>

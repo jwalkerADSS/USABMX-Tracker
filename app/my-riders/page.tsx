@@ -51,7 +51,6 @@ export default async function MyRidersPage({ searchParams }: { searchParams: Pro
             </ul>
           ) : null}
           {mine.length ? <Link href="/" className="button done-button">Done</Link> : null}
-          <p className="small"><Link href="/change-password" className="muted">Change password</Link></p>
         </section>
         {full ? (
           <p className="card muted">You&apos;re following {MAX_RIDERS} riders. Remove one to add another.</p>

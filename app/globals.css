@@ -32,12 +32,13 @@ p { margin: 4px 0; }
 
 .nav {
   position: sticky; top: 0; z-index: 1;
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px;
   max-width: 720px; margin: 0 auto; padding: 12px 16px; background: var(--bg);
 }
-.nav a { text-decoration: none; font-weight: 600; }
-.nav nav { display: flex; gap: 16px; align-items: center; }
-.brand { font-weight: 800; letter-spacing: 0.02em; }
+.nav a { text-decoration: none; font-weight: 600; white-space: nowrap; }
+.nav nav { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; }
+.nav .link { white-space: nowrap; }
+.brand { font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
 
 button, input {
   font: inherit; border-radius: 10px; border: 1px solid #2c4c7c; padding: 10px 12px;
@@ -51,7 +52,7 @@ label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
 .login h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }
 
 .rider-head { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-.badge { background: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 700; }
+.badge { background: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 .rider-card:active { background: var(--card-2); }
 .record { margin-top: 10px; }
 
@@ -196,7 +197,10 @@ button.danger { background: transparent; border-color: var(--accent); color: var
 .badge.trial { background: var(--card-2); }
 .install-app ol { margin: 12px 0 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 body:has(main.login) .install-app { max-width: 380px; }
-.tour-link { align-self: center; padding: 8px; }
+.tour-help {
+  width: 24px; height: 24px; padding: 0; margin-left: 6px; border-radius: 50%; border: 2px solid currentColor;
+  background: none; color: var(--muted); font-size: 0.85rem; font-weight: 800; line-height: 1; vertical-align: middle;
+}
 .tour-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(4, 12, 26, 0.65); }
 .tour-target {
   position: relative; z-index: 51; border-radius: 10px; scroll-margin-top: 72px;
