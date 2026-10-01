@@ -15,7 +15,7 @@ const STEPS: Step[] = [
   {
     target: '.rider-card',
     title: 'Rider card',
-    body: 'Each rider you follow gets a card like this one. Tap the rider’s name to open their own page.',
+    body: 'Each rider you follow gets a card like this one. Tap the rider’s name to open their own page. With more than one rider, press and hold a card, then drag it to change the order.',
   },
   {
     target: '.rider-card .badge',

@@ -120,6 +120,14 @@ export async function addRider(form: FormData): Promise<void> {
   redirect('/my-riders');
 }
 
+// The home screen's new card order. Only reorders: the riders themselves must stay the same.
+export async function reorderRiders(order: number[]): Promise<void> {
+  const account = await currentAccount();
+  if (!account || !Array.isArray(order)) return;
+  const same = order.length === account.riders.length && account.riders.every(id => order.includes(id));
+  if (same) await setRiders(account.username, order);
+}
+
 export async function removeRider(form: FormData): Promise<void> {
   const account = await currentAccount();
   const id = Number(form.get('profileId'));

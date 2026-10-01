@@ -7,6 +7,7 @@ import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
 import { getEvent, getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
+import { CardOrder } from './card-order';
 import { Tour } from './tour';
 import { districtAge, formatDate, ordinal } from '@/lib/format';
 
@@ -80,14 +81,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
               })}. Ask the admin to renew it.
             </p>
           ) : null}
-          {profiles.map((p, i) => {
-            if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
-            const tracked = tables[i];
-            return (
-              <RiderCard key={p.profileId} profileId={tracked?.profileId ?? p.profileId} altProfileIds={tracked?.altProfileIds}
-                memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
-            );
-          })}
+          <CardOrder ids={account.riders}>
+            {profiles.map((p, i) => {
+              if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
+              const tracked = tables[i];
+              return (
+                <RiderCard key={p.profileId} profileId={tracked?.profileId ?? p.profileId} altProfileIds={tracked?.altProfileIds}
+                  memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
+              );
+            })}
+          </CardOrder>
           <Link href="/change-password" className="change-rider">Change password</Link>
           <Tour />
         </main>
