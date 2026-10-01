@@ -116,6 +116,39 @@ export async function getRaceHistory(memberId: number, year: number): Promise<Ra
   return races.sort((a, b) => b.date.localeCompare(a.date));
 }
 
+// ---- Racing age -------------------------------------------------------------
+
+// Standings use the age a rider turns this season. That normally comes from the profile's birth date, but
+// some profiles carry the wrong one (often a parent's), so it is checked against the age group the rider
+// last raced in. label is what to show next to the level: "10", or "17-20" when only the age group is known.
+export type RiderAge = { age: number | null; label: string | null; birthYear: number | null };
+
+function raceAgeRange(ageGroup: string): { lo: number; hi: number } | null {
+  if (/pro|open|mixed/i.test(ageGroup)) return null; // pro and open classes span many ages
+  const m = ageGroup.match(/^(\d+)(?:\s*-\s*(\d+)|\s*&\s*(Under|Over))?/i);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (m[2]) return { lo: n, hi: Number(m[2]) };
+  if (m[3]?.toLowerCase() === 'under') return { lo: 1, hi: n };
+  if (m[3]?.toLowerCase() === 'over') return { lo: n, hi: 120 };
+  return { lo: n, hi: n };
+}
+
+export async function getRiderAge(profile: Profile, season: number, racesThisSeason?: Race[]): Promise<RiderAge> {
+  const birthYear = Number(profile.birthdate?.slice(0, 4)) || null;
+  const fromBirth = birthYear && birthYear > 1900 ? season - birthYear : null;
+  let races = racesThisSeason ?? (await getRaceHistory(profile.memberId, season).catch(() => [] as Race[]));
+  if (!races.some(r => r.bike === 'class')) races = await getRaceHistory(profile.memberId, season - 1).catch(() => [] as Race[]);
+  const latest = races.filter(r => r.bike === 'class').map(r => ({ r, range: raceAgeRange(r.ageGroup) })).find(x => x.range);
+  if (!latest) return { age: fromBirth, label: fromBirth != null ? String(fromBirth) : null, birthYear };
+  const since = season - Number(latest.r.date.slice(0, 4));
+  const { lo, hi } = latest.range!;
+  // On race day a rider is the age they turn that year or one younger.
+  if (fromBirth != null && fromBirth >= lo + since && fromBirth <= hi + since + 1) return { age: fromBirth, label: String(fromBirth), birthYear };
+  if (lo === hi) return { age: lo + since, label: String(lo + since), birthYear: season - (lo + since) };
+  return { age: lo + since, label: since ? null : latest.r.ageGroup.match(/^[^A-Za-z]+(?:Under|Over)?/)?.[0].trim() ?? null, birthYear: null };
+}
+
 // ---- Events, race days and results ------------------------------------------
 
 export type RaceDay = { raceDayId: number; date: string; name: string };
@@ -496,7 +529,7 @@ export type TableHints = { district?: string; gender?: 'Boys' | 'Girls' };
 // age, level and home state. Boys or Girls comes from the hints or the level, else from finding the
 // rider in the national, NAG or district table; the district from the hints, else from the state's districts.
 export async function findTables(profile: Profile, points: Points, year: number, hints: TableHints = {}): Promise<Tables> {
-  const age = profile.birthdate ? year - Number(profile.birthdate.slice(0, 4)) : NaN;
+  const age = (await getRiderAge(profile, year)).age ?? NaN;
   if (!Number.isFinite(age) || age < 1 || age > 120) return {};
   const level = profile.level ?? '';
   const expert = /expert|pro/i.test(level);

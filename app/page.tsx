@@ -5,11 +5,11 @@ import { TRACKED, currentSeason, getRiderTables } from '@/lib/riders';
 import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
-import { getEvent, getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
+import { getEvent, getPoints, getProfile, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
 import { CardOrder } from './card-order';
 import { Tour } from './tour';
-import { districtAge, formatDate, ordinal } from '@/lib/format';
+import { formatDate, ordinal } from '@/lib/format';
 
 export const maxDuration = 60;
 
@@ -24,7 +24,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
   const last = races[0];
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
   // District age (the age the rider turns this year) goes with the level, the way classes are named: "10 Inter".
-  const age = districtAge(profile?.birthdate ?? null, year);
+  const age = profile ? (await getRiderAge(profile, year, races)).label : null;
   const badge = [age, profile?.level].filter(x => x != null).join(' ');
   return (
     <section className="card rider-card">

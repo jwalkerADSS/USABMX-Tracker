@@ -4,9 +4,9 @@ import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
-import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
+import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding, getTrackIds,
+  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getRiderAge, getStanding, getTrackIds,
   type FieldEntry, type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
@@ -35,9 +35,9 @@ export default async function RiderPage({ params, searchParams }: Props) {
   if (!profile) notFound();
   const tracked = await getRiderTables(profileId).catch(() => null);
   const name = `${profile.firstName} ${profile.lastName}`;
-  const age = districtAge(profile.birthdate, currentSeason());
-
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
+  const riderAge = await getRiderAge(profile, currentSeason(), year === currentSeason() ? races : undefined);
+  const age = riderAge.label;
   const last5 = races.slice(0, 5);
   // Only this season's races can be compared with riders' current levels.
   const thisSeason = year === currentSeason();
@@ -138,7 +138,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
               {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} />)}
             </ul>
           ) : (
-            <p className="muted">No races in {year} yet.</p>
+            <p className="muted">
+              No races in {year} yet.{' '}
+              {thisSeason ? <Link href={`/riders/${profileId}?year=${year - 1}`}>See {year - 1} races</Link> : null}
+            </p>
           )}
           <p className="muted small">
             Points are worked out from the USA BMX rule book: finish points plus one point per rider in the moto, times the
@@ -152,7 +155,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             races={races}
             rider={{
               firstName: profile.firstName, lastName: profile.lastName, state: profile.state,
-              birthYear: Number(profile.birthdate?.slice(0, 4)) || null, transponders: tracked?.transponders,
+              birthYear: riderAge.birthYear, transponders: tracked?.transponders,
             }}
           />
         </Suspense>
