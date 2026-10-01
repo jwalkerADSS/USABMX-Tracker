@@ -100,7 +100,7 @@ export type Race = {
 export async function getRaceHistory(memberId: number, year: number): Promise<Race[]> {
   type Row = {
     finish: number; race_date: string; age_group: string; points_class: string; bmx_race_id: number;
-    track_name: string; state_abbreviation: string; race_name: string; riders: string;
+    track_name: string | null; state_abbreviation: string | null; race_name: string; riders: string;
   };
   type Res = { total_records?: number; data?: Row[] };
   const races: Race[] = [];
@@ -109,8 +109,9 @@ export async function getRaceHistory(memberId: number, year: number): Promise<Ra
       const res = await api<Res>(`dashboard/race-history?memberId=${memberId}&year=${year}&bikeType=${bike}&page=${page}&limit=100`);
       const rows = res.data ?? [];
       races.push(...rows.map(r => ({
-        date: r.race_date.slice(0, 10), raceId: r.bmx_race_id, raceType: r.race_name.trim(), track: r.track_name,
-        state: r.state_abbreviation, level: r.points_class, ageGroup: r.age_group, finish: r.finish,
+        date: r.race_date.slice(0, 10), raceId: r.bmx_race_id, raceType: r.race_name.trim(),
+        // Events USA BMX runs itself list "USA BMX" as the track, or before mid-2024 no track at all.
+        track: r.track_name?.trim() || 'USA BMX', state: r.state_abbreviation ?? '', level: r.points_class, ageGroup: r.age_group, finish: r.finish,
         riders: Number(r.riders), bike,
       })));
       if (!rows.length || page * 100 >= (res.total_records ?? 0)) break;

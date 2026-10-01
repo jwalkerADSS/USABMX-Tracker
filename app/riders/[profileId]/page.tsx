@@ -76,7 +76,14 @@ export default async function RiderPage({ params, searchParams }: Props) {
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
   const podiums = races.filter(r => r.finish === 2 || r.finish === 3).length;
-  const tracks = winsByTrack(races);
+  // Races at events USA BMX runs itself count under the national's name ("Derby City Nationals"), or else the
+  // event's race name ("Gold Cup Final", or "National" for nationals from before mid-2024, which USA BMX's
+  // event list no longer has).
+  const nationalsByYear = new Map<number, National[]>([[year, nationals]]);
+  const byEvent = (rs: Race[]) => rs.map(r => r.track !== 'USA BMX' ? r : {
+    ...r, track: nationalOn(nationalsByYear.get(Number(r.date.slice(0, 4))) ?? [], r.date, r.date, profile.state)?.name ?? eventName([r]),
+  });
+  const tracks = winsByTrack(byEvent(races));
   const top = tracks[0];
   const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
 
@@ -86,7 +93,11 @@ export default async function RiderPage({ params, searchParams }: Props) {
         .then(async h => [...h, ...await getNationalRaces(y, { name, state: profile.state }, h).catch(() => [] as Race[])])
         .catch(() => [] as Race[])))).flat()
     : races;
-  const winsTracks = allTime ? winsByTrack(allRaces) : tracks;
+  if (allTime) {
+    const eventYears = [...new Set(allRaces.filter(r => r.track === 'USA BMX').map(r => Number(r.date.slice(0, 4))))].filter(y => y !== year);
+    await Promise.all(eventYears.map(async y => nationalsByYear.set(y, await getNationals(y).catch(() => []))));
+  }
+  const winsTracks = allTime ? winsByTrack(byEvent(allRaces)) : tracks;
   const winsTrackIds = allTime ? new Map([...await getTrackIds(allRaces).catch(() => new Map<string, number>()), ...trackIds]) : trackIds;
   const winsHref = (all: boolean) =>
     `/riders/${profileId}?year=${year}${sort === 'newest' ? '' : `&sort=${sort}`}${more ? '&more=1' : ''}${all ? '&wins=all' : ''}#wins`;
@@ -363,23 +374,24 @@ function byTrack(races: Race[], nationals: National[], riderState: string | null
   return groups.map(({ key, races: list }) => {
     if (key !== 'USA BMX') return { track: key, races: list, event: false };
     const first = list.at(-1)!.date, last = list[0].date;
-    const name = nationalOn(nationals, first, last, riderState)?.name ?? eventName(list) ?? 'USA BMX event';
+    const name = nationalOn(nationals, first, last, riderState)?.name ?? eventName(list);
     return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list, event: true };
   });
 }
 
 // The race name of the event's biggest day, unless it's just "Standard": "Gold Cup Final QUADRUPLE" -> "Gold Cup Final".
-function eventName(list: Race[]): string | null {
+// A national's days are just "Standard" and its pre-race "Nat. Prerace": "National" and "National Prerace".
+function eventName(list: Race[]): string {
   const top = [...list].sort((a, b) => multiplier(b.raceType) - multiplier(a.raceType))[0];
   const name = raceLabel(top.raceType).split(' · ')[0];
-  return /^standard$/i.test(name) ? null : name;
+  return /^standard$/i.test(name) ? 'National' : /^nat\.? ?pre-?race$/i.test(name) ? 'National Prerace' : name;
 }
 
 // Days at USA BMX-run events: the national's day ("Derby City Nationals Day 2", or "Day 2" under its group),
 // or else the race name ("Gold Cup Final").
 function raceTitle(race: Race, titles: Map<string, DayTitle>, form: keyof DayTitle): string | undefined {
   if (race.track !== 'USA BMX') return undefined;
-  return titles.get(race.date)?.[form] ?? eventName([race]) ?? undefined;
+  return titles.get(race.date)?.[form] ?? eventName([race]);
 }
 
 function winsText(races: Race[]): string {
