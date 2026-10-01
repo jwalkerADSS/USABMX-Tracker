@@ -281,3 +281,11 @@ button.lap:active { background: var(--card-2); }
 .race-group .races { border-top: 1px solid #2c4c7c; padding: 10px 0; margin: 0; }
 .race-group .races li:first-child { padding-top: 0; }
 .wins-tabs { margin: 4px 0 10px; }
+.fold { position: relative; }
+.fold > .fold-toggle {
+  position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  background: var(--card-2); border: none; color: inherit; font-size: 1.2rem; line-height: 1;
+}
+.fold > .fold-toggle + * { padding-right: 38px; }
+.fold-placeholder { margin: 0; cursor: pointer; min-height: 30px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.folded { padding-top: 12px; padding-bottom: 12px; }

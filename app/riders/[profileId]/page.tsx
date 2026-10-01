@@ -14,6 +14,7 @@ import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
 import { RaceControls, type RaceSort } from './race-controls';
+import { Fold } from '../../fold';
 
 export const maxDuration = 60;
 
@@ -100,7 +101,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
         </>
       } />
       <main className="stack">
-        <section className="card">
+        <Fold id="rankings" title="Rankings">
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>
@@ -110,9 +111,9 @@ export default async function RiderPage({ params, searchParams }: Props) {
               Plates: {points.plates.map(p => `${p.plateType} #${p.value} (${p.season})`).join(', ')}
             </p>
           ) : null}
-        </section>
+        </Fold>
 
-        <section className="card">
+        <Fold id="record" title={`${year} record`}>
           <h2>{year} record</h2>
           <div className="stats">
             <Stat label="Races" value={races.length} />
@@ -126,10 +127,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
               {worst && worst.track !== top.track ? <TrackTile label="Worst track" t={worst} id={trackIds.get(worst.track)} /> : null}
             </div>
           ) : null}
-        </section>
+        </Fold>
 
         {tracks.length > 1 || years.length > 1 ? (
-          <section className="card" id="wins">
+          <Fold id="wins" title="Wins by track">
             <h2>Wins by track</h2>
             <nav className="day-tabs wins-tabs">
               <Link href={winsHref(false)} className={allTime ? '' : 'active'} scroll={false}>{year === currentSeason() ? 'This year' : year}</Link>
@@ -156,19 +157,19 @@ export default async function RiderPage({ params, searchParams }: Props) {
               </table>
             ) : <p className="muted">No races in {year}.</p>}
             {allTime ? <p className="muted small">All time covers {years.at(-1)}–{years[0]}, the seasons with races posted on USA BMX.</p> : null}
-          </section>
+          </Fold>
         ) : null}
 
         {tracked ? (
-          <section className="card">
+          <Fold id="standings" title="Standings and points gaps">
             <h2>Standings and points gaps</h2>
             <ul className="standings">
               {standings.map((s, i) => <StandingItem key={i} s={s} />)}
             </ul>
-          </section>
+          </Fold>
         ) : null}
 
-        <section className="card" id="races">
+        <Fold id="races" title="Races">
           <h2>
             {sort === 'track' ? `${year} races by track` : more ? `All ${races.length} races in ${year}`
               : `${sort === 'oldest' ? 'First' : 'Last'} ${detailed.length} ${detailed.length === 1 ? 'race' : 'races'}`}
@@ -216,9 +217,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
             Points are worked out from the USA BMX rule book: finish points plus one point per rider in the moto, times the
             race&apos;s multiplier. USA BMX doesn&apos;t publish points per race, so season totals can differ slightly.
           </p>
-        </section>
+        </Fold>
 
-        <Suspense fallback={<section className="card"><h2>Lap times</h2><p className="muted">Loading lap times…</p></section>}>
+        <Fold id="lap-times" title="Lap times">
+        <Suspense fallback={<><h2>Lap times</h2><p className="muted">Loading lap times…</p></>}>
           <LapTimesSection
             year={year}
             races={races}
@@ -228,6 +230,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             }}
           />
         </Suspense>
+        </Fold>
       </main>
     </>
   );
@@ -237,7 +240,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
 async function LapTimesSection({ rider, year, races }: { rider: RiderMatch; year: number; races: Race[] }) {
   const data = await getLapTimes(rider, year, races).catch(() => null);
   return (
-    <section className="card" id="lap-times">
+    <>
       <h2>{year} lap times</h2>
       {!data ? (
         <p className="muted">Sqorz didn&apos;t answer, so lap times can&apos;t be shown right now.</p>
@@ -250,7 +253,7 @@ async function LapTimesSection({ rider, year, races }: { rider: RiderMatch; year
         Lap times come from Sqorz timing{data?.sources.length ? ` (${data.sources.join(', ')})` : ''}. Tracks only time riders who
         carry a transponder, and nationals don&apos;t time Novice or Intermediate motos.{data?.laps.length ? ' Tap a time to compare it with other riders there.' : ''}
       </p>
-    </section>
+    </>
   );
 }
 
