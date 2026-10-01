@@ -226,3 +226,11 @@ body:has(main.login) .install-app { max-width: 380px; }
 .tour-buttons span { flex: 1; }
 .tour-sheet.on-top { bottom: auto; top: calc(12px + env(safe-area-inset-top)); }
 .tour-sheet.tall { max-height: 88vh; }
+
+/* Press and hold a rider card, then drag to reorder. */
+.card-order { display: flex; flex-direction: column; gap: 14px; }
+.card-slot { position: relative; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.card-slot.lifted { z-index: 5; transform: translateY(var(--drag-y, 0)) scale(1.02); }
+.card-slot.lifted > .card { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); outline: 2px solid var(--accent, #e63946); }
+.card-order.is-dragging .card-slot:not(.lifted) { opacity: 0.85; }
+.order-hint { text-align: center; margin: -4px 0 0; }

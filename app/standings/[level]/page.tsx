@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { Nav } from '../../nav';
-import { currentSeason, findTracked } from '@/lib/riders';
+import { currentSeason, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal } from '@/lib/format';
 import {
   LEVEL_LABELS, getPoints, getProfile, getRiderNationals, getStandingsTable, levelOfPointsType, rankPage, tableTitle,
@@ -17,14 +17,16 @@ const isLevel = (l: string): l is Level => l in LEVEL_LABELS;
 
 export async function generateMetadata({ params, searchParams }: Props) {
   const { level } = await params;
-  const tracked = findTracked(Number((await searchParams).rider));
+  const rider = Number((await searchParams).rider);
+  const tracked = Number.isInteger(rider) && rider > 0 ? await getRiderTables(rider).catch(() => null) : null;
   return { title: (isLevel(level) && tracked && tableTitle(level, tracked.tables)) || 'Standings' };
 }
 
 export default async function StandingsPage({ params, searchParams }: Props) {
   const { level } = await params;
   const { rider, page: pageParam } = await searchParams;
-  const tracked = findTracked(Number(rider));
+  const riderId = Number(rider);
+  const tracked = Number.isInteger(riderId) && riderId > 0 ? await getRiderTables(riderId).catch(() => null) : null;
   if (!isLevel(level) || !tracked || !tableTitle(level, tracked.tables)) notFound();
   const year = currentSeason();
   const ids = new Set([tracked.profileId, ...(tracked.altProfileIds ?? [])]);

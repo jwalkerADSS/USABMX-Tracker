@@ -23,3 +23,7 @@ export function searchRiders(query: string, limit = 50): IndexedRider[] {
     return words.every(w => name.includes(w));
   }).slice(0, limit);
 }
+
+export function findIndexed(profileId: number): IndexedRider | undefined {
+  return riders.find(r => r.profileId === profileId);
+}

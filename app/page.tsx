@@ -1,22 +1,23 @@
 import Link from 'next/link';
 import { Nav } from './nav';
 import { redirect } from 'next/navigation';
-import { TRACKED, currentSeason, findTracked } from '@/lib/riders';
+import { TRACKED, currentSeason, getRiderTables } from '@/lib/riders';
 import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
 import { getEvent, getPoints, getProfile, getRaceHistory, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
+import { CardOrder } from './card-order';
 import { Tour } from './tour';
 import { districtAge, formatDate, ordinal } from '@/lib/format';
 
 export const maxDuration = 60;
 
-// tables is set for the family's tracked riders, whose rank tiles open the full standings.
+// When tables is set the rank tiles open the full standings and a Gold Cup tile is added.
 async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: { profileId: number; altProfileIds?: number[]; memberId: number; name: string; tables?: Tables }) {
   const year = currentSeason();
   const [profile, points, races] = await Promise.all([getProfile(profileId), getPoints(profileId), getRaceHistory(memberId, year)]);
-  const goldCup = tables
+  const goldCup = tables?.goldCup
     ? await getStanding('goldCup', tables, year, { memberId, name, profileIds: [profileId, ...(altProfileIds ?? [])] }, points).catch(() => null)
     : null;
   const wins = races.filter(r => r.finish === 1).length;
@@ -32,7 +33,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
         {badge ? <span className="badge">{badge}</span> : null}
       </div>
       {profile?.homeTrack ? <p className="muted">{profile.homeTrack}</p> : null}
-      <RankRow points={points} profileId={tables ? profileId : undefined} goldCup={goldCup} />
+      <RankRow points={points} profileId={profileId} tables={tables} goldCup={goldCup} />
       <p className="record">
         {year}: <strong>{wins}</strong> wins in <strong>{races.length}</strong> races
         {races.length ? ` (${Math.round((wins / races.length) * 100)}%)` : ''}
@@ -64,7 +65,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
     // Account holders follow up to five riders of their own, chosen after sign-up.
     if (account.mustChangePassword) redirect('/change-password');
     if (!account.riders.length) redirect('/my-riders?welcome=1');
-    const profiles = await Promise.all(account.riders.map(id => getProfile(id).catch(() => null)));
+    const [profiles, tables] = await Promise.all([
+      Promise.all(account.riders.map(id => getProfile(id).catch(() => null))),
+      // Every rider gets the Gold Cup tile and clickable standings tiles, not just the family's.
+      Promise.all(account.riders.map(id => getRiderTables(id).catch(() => null))),
+    ]);
     return (
       <>
         <Nav />
@@ -76,15 +81,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
               })}. Ask the admin to renew it.
             </p>
           ) : null}
-          {profiles.map((p, i) => {
-            if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
-            // The family's riders keep their clickable standings tiles.
-            const tracked = findTracked(p.profileId);
-            return (
-              <RiderCard key={p.profileId} profileId={tracked?.profileId ?? p.profileId} altProfileIds={tracked?.altProfileIds}
-                memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
-            );
-          })}
+          <CardOrder ids={account.riders}>
+            {profiles.map((p, i) => {
+              if (!p) return <p key={account.riders[i]} className="card muted">USA BMX profile {account.riders[i]} didn&apos;t load.</p>;
+              const tracked = tables[i];
+              return (
+                <RiderCard key={p.profileId} profileId={tracked?.profileId ?? p.profileId} altProfileIds={tracked?.altProfileIds}
+                  memberId={p.memberId} name={`${p.firstName} ${p.lastName}`} tables={tracked?.tables} />
+              );
+            })}
+          </CardOrder>
           <Link href="/change-password" className="change-rider">Change password</Link>
           <Tour />
         </main>

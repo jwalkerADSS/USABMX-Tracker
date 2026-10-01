@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
-import { currentSeason, findTracked } from '@/lib/riders';
+import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { districtAge, formatDate, num, ordinal, pts } from '@/lib/format';
 import {
   LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getStanding, getTrackIds,
@@ -30,7 +30,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
 
   const profile = await getProfile(profileId);
   if (!profile) notFound();
-  const tracked = findTracked(profileId);
+  const tracked = await getRiderTables(profileId).catch(() => null);
   const name = `${profile.firstName} ${profile.lastName}`;
   const age = districtAge(profile.birthdate, currentSeason());
 
@@ -71,7 +71,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>
-          <RankRow points={points} profileId={tracked?.profileId} goldCup={standings.find(s => s?.level === 'goldCup')} />
+          <RankRow points={points} profileId={tracked?.profileId} tables={tracked?.tables} goldCup={tracked?.tables.goldCup ? standings.find(s => s?.level === 'goldCup') : null} />
           {points.plates.length ? (
             <p className="muted small">
               Plates: {points.plates.map(p => `${p.plateType} #${p.value} (${p.season})`).join(', ')}
