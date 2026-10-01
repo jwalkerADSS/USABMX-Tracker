@@ -6,8 +6,8 @@ import type { CompareEntry, LapTimes } from '@/lib/sqorz';
 
 type Lap = LapTimes['laps'][number];
 
-type Sort = 'newest' | 'oldest' | 'shortest' | 'longest';
-const SORTS: [Sort, string][] = [['newest', 'Newest first'], ['oldest', 'Oldest first'], ['shortest', 'Shortest first'], ['longest', 'Longest first']];
+type Sort = 'newest' | 'oldest' | 'location';
+const SORTS: [Sort, string][] = [['newest', 'Newest'], ['oldest', 'Oldest'], ['location', 'Location / event']];
 const BEST = 10;
 
 export function time(ms: number): string {
@@ -18,19 +18,23 @@ const gap = (ms: number) => `${ms < 0 ? '−' : '+'}${(Math.abs(ms) / 1000).toFi
 const day = (iso: string) =>
   new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
-function sorted(laps: Lap[], sort: Sort): Lap[] {
-  const by = {
-    newest: (a: Lap, b: Lap) => b.date.localeCompare(a.date) || a.ms - b.ms,
-    oldest: (a: Lap, b: Lap) => a.date.localeCompare(b.date) || a.ms - b.ms,
-    shortest: (a: Lap, b: Lap) => a.ms - b.ms,
-    longest: (a: Lap, b: Lap) => b.ms - a.ms,
-  }[sort];
-  return [...laps].sort(by);
+const newest = (a: Lap, b: Lap) => b.date.localeCompare(a.date) || a.ms - b.ms;
+const oldest = (a: Lap, b: Lap) => a.date.localeCompare(b.date) || a.ms - b.ms;
+const fastest = (a: Lap, b: Lap) => a.ms - b.ms;
+
+// One group per track, or per national (all its days), most recently raced first.
+function byLocation(laps: Lap[]): { location: string; laps: Lap[] }[] {
+  const groups = new Map<string, Lap[]>();
+  for (const l of [...laps].sort(newest)) {
+    if (!groups.has(l.location)) groups.set(l.location, []);
+    groups.get(l.location)!.push(l);
+  }
+  return [...groups].map(([location, list]) => ({ location, laps: list }));
 }
 
 export function LapTimesView({ data, name }: { data: LapTimes; name: string }) {
   const [all, setAll] = useState(false);
-  const [sort, setSort] = useState<Sort>('shortest');
+  const [sort, setSort] = useState<Sort>('newest');
   const [open, setOpen] = useState<Lap | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -44,7 +48,9 @@ export function LapTimesView({ data, name }: { data: LapTimes; name: string }) {
     return new Set([...m.values()].map(l => l.id));
   }, [data.laps]);
 
-  const shown = all ? sorted(data.laps, sort) : sorted(sorted(data.laps, 'shortest').slice(0, BEST), sort);
+  // Newest and Oldest show the 10 best times until "Show all"; Location / event groups every time.
+  const order = sort === 'oldest' ? oldest : newest;
+  const shown = all ? [...data.laps].sort(order) : [...data.laps].sort(fastest).slice(0, BEST).sort(order);
   const show = (l: Lap) => {
     setOpen(l);
     dialog.current?.showModal();
@@ -60,36 +66,35 @@ export function LapTimesView({ data, name }: { data: LapTimes; name: string }) {
           </select>
         </label>
       </div>
-      <ul className="laps">
-        {shown.map(l => (
-          <li key={l.id}>
-            <button type="button" className="lap" onClick={() => show(l)}>
-              <span className="lap-time">
-                {time(l.ms)}
-                {best.has(l.id) ? <span className="lap-best">Best</span> : null}
-              </span>
-              <span className="lap-body">
-                <strong>{l.location}{l.bike === 'cruiser' ? ' (cruiser)' : ''}</strong>
-                <span className="muted small">{day(l.date)} · {l.event}</span>
-                {l.details.length ? <span className="muted small">{l.details.join(' · ')}</span> : null}
-                {l.splits.length ? <span className="lap-splits small">{l.splits.map(s => `${s.name} ${time(s.ms)}`).join(' · ')}</span> : null}
-              </span>
+      {sort === 'location' ? (
+        <div className="lap-groups">
+          {byLocation(data.laps).map(g => {
+            const top = g.laps.reduce((a, b) => (b.ms < a.ms ? b : a));
+            return (
+              <details key={g.location} className="lap-group">
+                <summary>
+                  <span className="lap-group-head">
+                    <strong>{g.location}</strong>
+                    <span className="muted small">
+                      {g.laps.length} {g.laps.length === 1 ? 'time' : 'times'} · best {time(top.ms)} · last {day(g.laps[0].date)}
+                    </span>
+                  </span>
+                </summary>
+                <LapList laps={g.laps} best={best} onPick={show} grouped />
+              </details>
+            );
+          })}
+        </div>
+      ) : (
+        <>
+          <LapList laps={shown} best={best} onPick={show} />
+          {data.laps.length > BEST ? (
+            <button type="button" className="secondary lap-more" onClick={() => setAll(!all)}>
+              {all ? `Show the ${BEST} best` : `Show all ${data.laps.length} times`}
             </button>
-          </li>
-        ))}
-      </ul>
-      {data.laps.length > BEST ? (
-        <button
-          type="button"
-          className="secondary lap-more"
-          onClick={() => {
-            setSort(all ? 'shortest' : 'newest');
-            setAll(!all);
-          }}
-        >
-          {all ? `Show the ${BEST} best` : `Show all ${data.laps.length} times`}
-        </button>
-      ) : null}
+          ) : null}
+        </>
+      )}
 
       <dialog ref={dialog} className="lap-dialog" onClose={() => setOpen(null)} onClick={e => e.target === dialog.current && dialog.current?.close()}>
         {open ? <Compare lap={open} name={name} /> : null}
@@ -98,6 +103,30 @@ export function LapTimesView({ data, name }: { data: LapTimes; name: string }) {
         </form>
       </dialog>
     </>
+  );
+}
+
+// Inside a location group the track is already named, so each time is titled by its event.
+function LapList({ laps, best, onPick, grouped = false }: { laps: Lap[]; best: Set<string>; onPick: (l: Lap) => void; grouped?: boolean }) {
+  return (
+    <ul className="laps">
+      {laps.map(l => (
+        <li key={l.id}>
+          <button type="button" className="lap" onClick={() => onPick(l)}>
+            <span className="lap-time">
+              {time(l.ms)}
+              {best.has(l.id) ? <span className="lap-best">Best</span> : null}
+            </span>
+            <span className="lap-body">
+              <strong>{grouped ? l.event : l.location}{l.bike === 'cruiser' ? ' (cruiser)' : ''}</strong>
+              <span className="muted small">{grouped ? day(l.date) : `${day(l.date)} · ${l.event}`}</span>
+              {l.details.length ? <span className="muted small">{l.details.join(' · ')}</span> : null}
+              {l.splits.length ? <span className="lap-splits small">{l.splits.map(s => `${s.name} ${time(s.ms)}`).join(' · ')}</span> : null}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

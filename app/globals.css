@@ -266,3 +266,12 @@ button.lap:active { background: var(--card-2); }
 .cmp li.ours { color: var(--win); font-weight: 700; }
 .cmp-name { display: flex; flex-direction: column; min-width: 0; }
 .cmp-time { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lap-groups { display: flex; flex-direction: column; gap: 8px; }
+.lap-group { background: var(--card-2); border-radius: 10px; padding: 0 12px; }
+.lap-group summary { cursor: pointer; padding: 12px 0; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lap-group summary::-webkit-details-marker { display: none; }
+.lap-group summary::after { content: '▸'; color: var(--muted); transition: transform 0.15s; }
+.lap-group[open] summary::after { transform: rotate(90deg); }
+.lap-group-head { display: flex; flex-direction: column; min-width: 0; }
+.lap-group .laps { border-top: 1px solid #2c4c7c; }
+.lap-group .lap-time { background: var(--card); }
