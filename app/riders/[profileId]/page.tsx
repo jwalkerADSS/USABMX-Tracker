@@ -235,7 +235,8 @@ function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: Rac
   return (
     <li>
       <div className="race-head">
-        <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{ordinal(race.finish)}</span>
+        {/* USA BMX lists 0 when no place was recorded, such as a rider who didn't finish or was disqualified. */}
+        <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{race.finish > 0 ? ordinal(race.finish) : '–'}</span>
         <div className="race-body">
           <div className="race-title">
             <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{race.track}</Link></strong>
@@ -244,6 +245,7 @@ function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: Rac
           </div>
           <p className="muted small">
             {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {race.finish > 0 ? '' : ' · No place recorded (did not finish or disqualified)'}
             {why}
           </p>
           {points && (points.state != null || points.goldCup != null) ? (

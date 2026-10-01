@@ -40,7 +40,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
       </p>
       {last ? (
         <p className="muted small">
-          Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{last.track}</Link> : last.track}: {ordinal(last.finish)} of {last.riders}
+          Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{last.track}</Link> : last.track}: {last.finish > 0 ? `${ordinal(last.finish)} of ${last.riders}` : `no place recorded (${last.riders} riders)`}
         </p>
       ) : null}
       <Link href={`/riders/${profileId}`} className="card-more">Races, points and gaps ›</Link>
