@@ -444,6 +444,119 @@ export function levelOfPointsType(type: string): Level | null {
   return null;
 }
 
+// ---- Finding any rider's standings tables --------------------------------------
+
+// Gold Cup region by home state, from where each region's 2025-26 Gold Cup races were held.
+const GOLD_CUP_REGION: Record<string, string> = {
+  AK: 'North West', BC: 'North West', ID: 'North West', MT: 'North West', OR: 'North West', WA: 'North West', WY: 'North West',
+  AZ: 'South West', CA: 'South West', HI: 'South West', NV: 'South West', UT: 'South West',
+  AR: 'South Central', CO: 'South Central', KS: 'South Central', LA: 'South Central', MO: 'South Central', NM: 'South Central',
+  OK: 'South Central', TX: 'South Central',
+  AL: 'South East', FL: 'South East', GA: 'South East', KY: 'South East', MS: 'South East', NC: 'South East', SC: 'South East',
+  TN: 'South East',
+  IA: 'North Central', IL: 'North Central', IN: 'North Central', MI: 'North Central', MN: 'North Central', ND: 'North Central',
+  NE: 'North Central', SD: 'North Central', WI: 'North Central',
+  CT: 'North East', DC: 'North East', DE: 'North East', MA: 'North East', MD: 'North East', ME: 'North East', NH: 'North East',
+  NJ: 'North East', NY: 'North East', OH: 'North East', ON: 'North East', PA: 'North East', RI: 'North East', VA: 'North East',
+  VT: 'North East', WV: 'North East',
+};
+
+// The filter options each standings page offers (some pages only list them once a table is chosen), such as "10 Nov/Inter" or "17-20 Women Expert".
+async function pageOptions(path: string): Promise<{ ageGroups: string[]; districts: string[] }> {
+  const hy = (await pageProps(path)).initialState?.hydratable ?? {};
+  return {
+    ageGroups: (hy.pointsAgeGroups?.ageGroups ?? []).map((a: { column_value: string }) => a.column_value),
+    districts: hy.districtPointsDistrictsList?.districtsList ?? [],
+  };
+}
+
+// "5 & Under", "17-20", "51 & Over" or a single age.
+function ageFits(label: string, age: number): boolean {
+  const m = label.match(/^(\d+)(?:-(\d+)| & (Under|Over))?/);
+  if (!m) return false;
+  const n = Number(m[1]);
+  if (m[2]) return age >= n && age <= Number(m[2]);
+  if (m[3] === 'Under') return age <= n;
+  if (m[3] === 'Over') return age >= n;
+  return age === n;
+}
+
+const isFemale = (label: string) => /\b(Girls?|Women)\b/.test(label);
+
+// Is the rider on the page of this table where their USA BMX rank puts them?
+async function onTable(path: string, rank: number | undefined, rider: RiderKey): Promise<boolean> {
+  const page = rankPage(rank);
+  const { rows } = await standingsPage(path, page).catch(() => ({ rows: [] as StandingRow[] }));
+  return rows.some(r => r.bmxMemberId === rider.memberId || (r.rider.profile_id != null && rider.profileIds.includes(r.rider.profile_id)));
+}
+
+export type TableHints = { district?: string; gender?: 'Boys' | 'Girls' };
+
+// Works out which district, state, Gold Cup, NAG and national tables a rider belongs in, from their
+// age, level and home state. Boys or Girls comes from the hints or the level, else from finding the
+// rider in the national, NAG or district table; the district from the hints, else from the state's districts.
+export async function findTables(profile: Profile, points: Points, year: number, hints: TableHints = {}): Promise<Tables> {
+  const age = profile.birthdate ? year - Number(profile.birthdate.slice(0, 4)) : NaN;
+  if (!Number.isFinite(age) || age < 1 || age > 120) return {};
+  const level = profile.level ?? '';
+  const expert = /expert|pro/i.test(level);
+  const novice = /nov/i.test(level);
+  const rider: RiderKey = { memberId: profile.memberId, profileIds: [profile.profileId], name: `${profile.firstName} ${profile.lastName}` };
+  const rankOf = (l: Level) => points.class.find(p => levelOfPointsType(p.type) === l)?.rank;
+  const e = encodeURIComponent;
+
+  const [stateOpts, goldCupOpts, nagOpts] = await Promise.all([
+    pageOptions(`/view-points/state-provincial?year=${year}&sanction=USA&state=NV&age-group=10%20Nov%2FInter`).catch(() => null),
+    pageOptions(`/view-points/gold-cup?year=${year}&region=South%20West&age-group=10%20Intermediate`).catch(() => null),
+    pageOptions(`/view-points/nag?year=${year}`).catch(() => null),
+  ]);
+  const pick = (opts: { ageGroups: string[] } | null, female: boolean, test: (label: string) => boolean) =>
+    opts?.ageGroups.find(a => !/Cruiser/.test(a) && ageFits(a, age) && isFemale(a) === female && test(a));
+  const nagGroup = (female: boolean) => pick(nagOpts, female, () => true);
+
+  let gender = hints.gender ?? (/girl|women/i.test(level) ? 'Girls' : undefined);
+  if (!gender) {
+    for (const g of ['Boys', 'Girls'] as const) {
+      const national = rankOf('national') && (await onTable(`/view-points/national?year=${year}&point-class=${g}`, rankOf('national'), rider));
+      const group = nagGroup(g === 'Girls');
+      const nag = !national && rankOf('nag') && group && (await onTable(`/view-points/nag?year=${year}&age-group=${e(group)}`, rankOf('nag'), rider));
+      if (national || nag) { gender = g; break; }
+    }
+  }
+
+  let district = hints.district;
+  const districtRank = rankOf('district');
+  if (!district && districtRank && profile.state) {
+    const codes = (await pageOptions(`/view-points/district?year=${year}&sanction=USA&district=NV01&class=Boys`).catch(() => null))?.districts ?? [];
+    search: for (const code of codes.filter(c => c.startsWith(profile.state!))) {
+      for (const g of gender ? [gender] : (['Boys', 'Girls'] as const)) {
+        if (await onTable(`/view-points/district?year=${year}&sanction=USA&district=${e(code)}&class=${g}`, districtRank, rider)) {
+          district = code;
+          gender ??= g;
+          break search;
+        }
+      }
+    }
+  }
+  const g = gender ?? 'Boys';
+  const female = g === 'Girls';
+
+  const tables: Tables = { national: { pointClass: g } };
+  if (district) tables.district = { district, class: g };
+  const stateGroup = expert
+    ? pick(stateOpts, female, a => /Expert$/.test(a))
+    : pick(stateOpts, false, a => /Nov\/Inter$/.test(a));
+  if (profile.state && stateGroup) tables.state = { state: profile.state, ageGroup: stateGroup };
+  const goldCupGroup = expert
+    ? pick(goldCupOpts, female, a => /Expert$/.test(a))
+    : pick(goldCupOpts, false, a => (novice ? /Novice$/ : /Intermediate$/).test(a));
+  const region = profile.state ? GOLD_CUP_REGION[profile.state] : undefined;
+  if (region && goldCupGroup) tables.goldCup = { region, ageGroup: goldCupGroup };
+  const nag = nagGroup(female);
+  if (nag) tables.nag = { ageGroup: nag };
+  return tables;
+}
+
 // ---- District plates ---------------------------------------------------------
 
 export const DISTRICT_CLASSES = ['Boys', 'Girls', 'Cruiser', 'Girl Cruiser'] as const;
