@@ -18,11 +18,13 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/build-index.mjs
+      # Which riders were timed at which nationals on Sqorz, for lap times.
+      - run: node scripts/build-sqorz-index.mjs
       - name: Commit if changed
         run: |
-          if git diff --quiet data/rider-index.json; then echo "No changes"; exit 0; fi
+          if git diff --quiet data/rider-index.json data/sqorz-index.json; then echo "No changes"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data/rider-index.json
+          git add data/rider-index.json data/sqorz-index.json
           git commit -m "Update rider search index"
           git push

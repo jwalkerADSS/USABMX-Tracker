@@ -10,6 +10,8 @@ export type TrackedRider = {
   profileId: number;
   altProfileIds?: number[];
   tables: Tables;
+  // Sqorz transponder codes (e.g. "GC-12345"): every lap they've done, at any Sqorz track.
+  transponders?: string[];
 };
 
 export const TRACKED: TrackedRider[] = tracked as TrackedRider[];
