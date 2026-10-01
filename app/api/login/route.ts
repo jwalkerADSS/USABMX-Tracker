@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { ACCOUNT_PREFIX, SESSION_COOKIE, TEST_USER, checkCredentials, createSession, sessionCookie } from '@/lib/auth';
+import {
+  ACCOUNT_PREFIX, DEVICE_HANDOFF_COOKIE, SESSION_COOKIE, TEST_USER, checkCredentials, createDeviceKey, createSession, sessionCookie,
+} from '@/lib/auth';
 import { signInAccount, touchAccount, trialEnds, wasRemoved } from '@/lib/accounts';
 import { storeReady } from '@/lib/store';
 
@@ -44,5 +46,9 @@ export async function POST(req: NextRequest) {
 async function signedIn(req: NextRequest, who: string, to: string, trial: number | undefined, remember: boolean) {
   const res = NextResponse.redirect(new URL(to, req.url), 303);
   res.cookies.set(SESSION_COOKIE, await createSession(who, trial, remember), sessionCookie(remember));
+  // Handed to the page once, which keeps it on the phone (see device-sign-in.tsx); "forget" clears an old one.
+  res.cookies.set(DEVICE_HANDOFF_COOKIE, remember ? await createDeviceKey(who, trial) : 'forget', {
+    secure: true, sameSite: 'lax', path: '/', maxAge: 300,
+  });
   return res;
 }

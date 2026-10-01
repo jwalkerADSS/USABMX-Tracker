@@ -79,6 +79,25 @@ export async function verifySession(value: string | undefined): Promise<string |
   return s && !s.expired ? s.who : null;
 }
 
+// "Stay signed in" also leaves a device key in the app's own storage on the phone, as a backup for when the phone
+// drops the sign-in cookie (seen with the installed app on Android after a full close). Sign-in uses it to start a
+// new session without the password. "device|<who>|<expiry ms>|<signature>"; it can't be used as a session cookie.
+export const DEVICE_HANDOFF_COOKIE = 'bmx_device';
+
+export async function createDeviceKey(who: string, trialEnds?: number): Promise<string> {
+  const payload = `device|${who.trim().toLowerCase()}|${Math.min(Date.now() + SESSION_DAYS * 86_400_000, trialEnds ?? Infinity)}`;
+  return `${payload}|${await hmac(payload)}`;
+}
+
+export async function readDeviceKey(value: string): Promise<string | null> {
+  const i = value.lastIndexOf('|');
+  if (i < 0) return null;
+  const payload = value.slice(0, i);
+  if (!timingSafeEqual(value.slice(i + 1), await hmac(payload))) return null;
+  const [kind, who, expiry] = payload.split('|');
+  return kind === 'device' && who && Number(expiry) >= Date.now() && isAllowed(who) ? who : null;
+}
+
 // True when the cookie belongs to a trial that has run out, so sign-in can say why.
 export async function trialEnded(value: string | undefined): Promise<boolean> {
   const s = await readSession(value);

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { currentAccount } from '@/lib/session';
 import { isAdmin } from '@/lib/accounts';
 import { TourHelp } from './tour';
+import { SignOutButton } from './sign-out-button';
 
 // title: shown under the top bar and pinned with it while the page scrolls (the rider page's name).
 export async function Nav({ back, title }: { back?: boolean; title?: ReactNode }) {
@@ -15,7 +16,7 @@ export async function Nav({ back, title }: { back?: boolean; title?: ReactNode }
         {account ? <Link href="/my-riders">My riders</Link> : null}
         <Link href="/search">Search</Link>
         <form method="post" action="/api/logout">
-          <button type="submit" className="link">Sign out</button>
+          <SignOutButton />
         </form>
       </nav>
       {title ? <div className="nav-title">{title}</div> : null}
