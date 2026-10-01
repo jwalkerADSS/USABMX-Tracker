@@ -210,7 +210,7 @@ function StandingItem({ s }: { s: Standing | null }) {
     <li>
       <div className="standing-head">
         <strong>{s.label}</strong>
-        {s.found ? <span>#{num(s.place!)} · {pts(s.points!)}</span> : <span className="muted">Not ranked</span>}
+        {s.found ? <span>{s.place ? `#${num(s.place)}` : '–'} · {pts(s.points!)}</span> : <span className="muted">Not ranked</span>}
       </div>
       {s.gaps.map(g => (
         <p key={g.place} className="gap">
@@ -235,7 +235,8 @@ function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: Rac
   return (
     <li>
       <div className="race-head">
-        <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{ordinal(race.finish)}</span>
+        {/* USA BMX lists 0 when no place was recorded: shown as DNQ (did not qualify). */}
+        <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{race.finish > 0 ? ordinal(race.finish) : /bal(ance|\.)?\s*bike/i.test(race.ageGroup) ? '–' : 'DNQ'}</span>
         <div className="race-body">
           <div className="race-title">
             <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{race.track}</Link></strong>
@@ -244,6 +245,7 @@ function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: Rac
           </div>
           <p className="muted small">
             {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {race.finish > 0 || /bal(ance|\.)?\s*bike/i.test(race.ageGroup) ? '' : ' · DNQ (did not qualify)'}
             {why}
           </p>
           {points && (points.state != null || points.goldCup != null) ? (

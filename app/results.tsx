@@ -29,7 +29,7 @@ export function DayResults({ groups, isOurs, title }: { groups: ResultGroup[]; i
           <ul className="our-results">
             {ours.map(r => (
               <li key={`${r.name}-${r.group.name}`}>
-                <span className={`finish ${r.place === 1 ? 'win' : ''}`}>{r.place ? ordinal(r.place) : '–'}</span>
+                <span className={`finish ${r.place === 1 ? 'win' : ''}`}>{placeText(r.place, r.group)}</span>
                 <span>
                   {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : r.name}
                   <span className="muted small"> · {r.group.className}, {r.group.totalRiders ?? r.group.riders.length} riders</span>
@@ -63,7 +63,7 @@ function GroupCard({ group, isOurs }: { group: ResultGroup; isOurs: IsOurs }) {
       <ol className="group-riders">
         {group.riders.map((r, i) => (
           <li key={`${r.memberId ?? r.name}-${i}`} className={isOurs(r) ? 'ours' : ''}>
-            <span className="place">{r.place ? ordinal(r.place) : '–'}</span>
+            <span className="place">{placeText(r.place, group)}</span>
             <span className="rider-cell">
               {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : <span>{r.name}</span>}
               {r.detail ? <span className="muted small rider-detail">{r.detail}</span> : null}
@@ -73,4 +73,9 @@ function GroupCard({ group, isOurs }: { group: ResultGroup; isOurs: IsOurs }) {
       </ol>
     </section>
   );
+}
+
+// No place (0) means the rider didn't qualify for the main, except in balance bike classes, which aren't scored.
+function placeText(place: number, group: ResultGroup): string {
+  return place ? ordinal(place) : /bal(ance|\.)?\s*bike/i.test(group.className) ? '–' : 'DNQ';
 }
