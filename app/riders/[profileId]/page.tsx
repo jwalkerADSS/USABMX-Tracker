@@ -171,7 +171,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
                     </span>
                   </summary>
                   <ul className="races">
-                    {g.races.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact title={raceTitle(r, dayTitles, 'day')} />)}
+                    {/* A USA BMX-run event's days read in order, Day 1 first. */}
+                    {(g.event ? [...g.races].reverse() : g.races).map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact title={raceTitle(r, dayTitles, 'day')} />)}
                   </ul>
                 </details>
               ))}
@@ -327,7 +328,7 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false, title }: 
 // within a few days of each other make one event. Its race pages only say "Standard TRIPLE" at USA BMX in
 // Desoto TX (the head office), so the event is named after the national running on those dates, or else
 // after its race name ("Gold Cup Final"), and dated.
-function byTrack(races: Race[], nationals: National[], riderState: string | null): { track: string; races: Race[] }[] {
+function byTrack(races: Race[], nationals: National[], riderState: string | null): { track: string; races: Race[]; event: boolean }[] {
   const days = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   const groups: { key: string; races: Race[] }[] = [];
   for (const r of races) {
@@ -336,10 +337,10 @@ function byTrack(races: Race[], nationals: National[], riderState: string | null
     else groups.push({ key: r.track, races: [r] });
   }
   return groups.map(({ key, races: list }) => {
-    if (key !== 'USA BMX') return { track: key, races: list };
+    if (key !== 'USA BMX') return { track: key, races: list, event: false };
     const first = list.at(-1)!.date, last = list[0].date;
     const name = nationalOn(nationals, first, last, riderState)?.name ?? eventName(list) ?? 'USA BMX event';
-    return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list };
+    return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list, event: true };
   });
 }
 
