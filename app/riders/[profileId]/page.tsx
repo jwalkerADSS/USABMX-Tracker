@@ -36,7 +36,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const tracked = await getRiderTables(profileId).catch(() => null);
   const name = `${profile.firstName} ${profile.lastName}`;
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
-  const riderAge = await getRiderAge(profile, currentSeason(), year === currentSeason() ? races : undefined);
+  const riderAge = getRiderAge(profile, currentSeason());
   const age = riderAge.label;
   const last5 = races.slice(0, 5);
   // Only this season's races can be compared with riders' current levels.
