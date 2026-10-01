@@ -416,7 +416,7 @@ export const LEVEL_LABELS: Record<Level, string> = {
 };
 // How each level is labelled in my-points, used to find the rider's rank (and so their page) quickly.
 const MY_POINTS_TYPE: Record<Level, string | null> = {
-  district: 'District', state: 'State', goldCup: null, nag: 'U.S. N.A.G.', national: 'U.S. National',
+  district: 'District', state: 'State', goldCup: 'Gold Cup', nag: 'U.S. N.A.G.', national: 'U.S. National',
 };
 
 function tableUrl(level: Level, t: Tables, year: number): string | null {
