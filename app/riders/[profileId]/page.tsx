@@ -17,7 +17,7 @@ import { RaceControls, type RaceSort } from './race-controls';
 
 export const maxDuration = 60;
 
-type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string; sort?: string; more?: string }> };
+type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string; sort?: string; more?: string; wins?: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const profile = await getProfile(Number((await params).profileId)).catch(() => null);
@@ -30,6 +30,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const year = Number(query.year) || currentSeason();
   const sort: RaceSort = query.sort === 'oldest' || query.sort === 'track' ? query.sort : 'newest';
   const more = query.more === '1';
+  const allTime = query.wins === 'all';
   if (!Number.isInteger(profileId) || profileId <= 0) notFound();
   // Some riders have an older duplicate profile that USA BMX only shows to the account owner.
   const alias = findTracked(profileId);
@@ -78,6 +79,17 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const top = tracks[0];
   const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
 
+  // Wins by track for this season, or all time: every season the rider raced, nationals included.
+  const allRaces = allTime
+    ? (await Promise.all(years.map(y => y === year ? races : getRaceHistory(profile.memberId, y)
+        .then(async h => [...h, ...await getNationalRaces(y, { name, state: profile.state }, h).catch(() => [] as Race[])])
+        .catch(() => [] as Race[])))).flat()
+    : races;
+  const winsTracks = allTime ? winsByTrack(allRaces) : tracks;
+  const winsTrackIds = allTime ? new Map([...await getTrackIds(allRaces).catch(() => new Map<string, number>()), ...trackIds]) : trackIds;
+  const winsHref = (all: boolean) =>
+    `/riders/${profileId}?year=${year}${sort === 'newest' ? '' : `&sort=${sort}`}${more ? '&more=1' : ''}${all ? '&wins=all' : ''}#wins`;
+
   return (
     <>
       <Nav back title={
@@ -116,27 +128,34 @@ export default async function RiderPage({ params, searchParams }: Props) {
           ) : null}
         </section>
 
-        {tracks.length > 1 ? (
-          <section className="card">
+        {tracks.length > 1 || years.length > 1 ? (
+          <section className="card" id="wins">
             <h2>Wins by track</h2>
-            <table className="track-table">
-              <thead>
-                <tr><th>Track</th><th>Wins</th><th>Races</th><th>Win %</th></tr>
-              </thead>
-              <tbody>
-                {tracks.map(t => {
-                  const id = trackIds.get(t.track);
-                  return (
-                    <tr key={t.track}>
-                      <td>{id ? <Link href={`/tracks/${id}`}>{t.track}</Link> : t.track}</td>
-                      <td>{t.wins}</td>
-                      <td>{t.races}</td>
-                      <td>{Math.round((t.wins / t.races) * 100)}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <nav className="day-tabs wins-tabs">
+              <Link href={winsHref(false)} className={allTime ? '' : 'active'} scroll={false}>{year === currentSeason() ? 'This year' : year}</Link>
+              <Link href={winsHref(true)} className={allTime ? 'active' : ''} scroll={false}>All time</Link>
+            </nav>
+            {winsTracks.length ? (
+              <table className="track-table">
+                <thead>
+                  <tr><th>Track</th><th>Wins</th><th>Races</th><th>Win %</th></tr>
+                </thead>
+                <tbody>
+                  {winsTracks.map(t => {
+                    const id = winsTrackIds.get(t.track);
+                    return (
+                      <tr key={t.track}>
+                        <td>{id ? <Link href={`/tracks/${id}`}>{t.track}</Link> : t.track}</td>
+                        <td>{t.wins}</td>
+                        <td>{t.races}</td>
+                        <td>{Math.round((t.wins / t.races) * 100)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : <p className="muted">No races in {year}.</p>}
+            {allTime ? <p className="muted small">All time covers {years.at(-1)}–{years[0]}, the seasons with races posted on USA BMX.</p> : null}
           </section>
         ) : null}
 
