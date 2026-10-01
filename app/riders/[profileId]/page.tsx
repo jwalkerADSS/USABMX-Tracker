@@ -6,10 +6,10 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getPoints, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
-  type FieldEntry, type Level, type Race, type RaceField, type Standing,
+  LEVEL_LABELS, getNationals, getPoints, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
+  type FieldEntry, type Level, type National, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
-import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
+import { higherLevel, multiplier, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
@@ -48,7 +48,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   // Only this season's races can be compared with riders' current levels.
   const thisSeason = year === currentSeason();
   const raised = thisSeason ? raisedRaces(races, profile.level) : new Set<Race>();
-  const [standings, fields, trackIds] = await Promise.all([
+  const [standings, fields, trackIds, nationals] = await Promise.all([
     tracked
       ? Promise.all((Object.keys(LEVEL_LABELS) as Level[]).map(level =>
           getStanding(level, tracked.tables, year, {
@@ -57,6 +57,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
       : Promise.resolve([]),
     Promise.all(detailed.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
     getTrackIds(races),
+    // Grouped by track, events USA BMX runs itself are named after the national on those dates.
+    sort === 'track' && races.some(r => r.track === 'USA BMX') ? getNationals(year).catch(() => []) : Promise.resolve([]),
   ]);
 
   // Races past the first five list without opponents, which would take a lookup per race.
@@ -157,7 +159,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             </p>
           ) : sort === 'track' ? (
             <div className="lap-groups">
-              {byTrack(races).map(g => (
+              {byTrack(races, nationals, profile.state).map(g => (
                 <details key={g.track} className="lap-group race-group">
                   <summary>
                     <span className="lap-group-head">
@@ -320,8 +322,10 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false }: { race:
 
 // One group per track, most recent first. Events USA BMX runs itself (nationals, Gold Cup finals) list
 // "USA BMX" as the track and each day as its own race, so their days are grouped by date instead: days
-// within a few days of each other make one event, named by its dates.
-function byTrack(races: Race[]): { track: string; races: Race[] }[] {
+// within a few days of each other make one event. Its race pages only say "Standard TRIPLE" at USA BMX in
+// Desoto TX (the head office), so the event is named after the national running on those dates, or else
+// after its race name ("Gold Cup Final"), and dated.
+function byTrack(races: Race[], nationals: National[], riderState: string | null): { track: string; races: Race[] }[] {
   const days = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   const groups: { key: string; races: Race[] }[] = [];
   for (const r of races) {
@@ -332,8 +336,26 @@ function byTrack(races: Race[]): { track: string; races: Race[] }[] {
   return groups.map(({ key, races: list }) => {
     if (key !== 'USA BMX') return { track: key, races: list };
     const first = list.at(-1)!.date, last = list[0].date;
-    return { track: `USA BMX event · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list };
+    const name = nationalOn(nationals, first, last, riderState)?.name ?? eventName(list) ?? 'USA BMX event';
+    return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list };
   });
+}
+
+const CANADA = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/;
+
+// Some nationals add a practice or pre-race day before their listed dates, so any overlap counts.
+// A US and a Canadian national sometimes run the same weekend; pick the one in the rider's own country.
+function nationalOn(nationals: National[], first: string, last: string, riderState: string | null): National | undefined {
+  const on = nationals.filter(n => n.begins <= last && first <= n.ends);
+  const canadian = (s: string | null) => !!s && CANADA.test(s.toUpperCase());
+  return on.find(n => canadian(n.state) === canadian(riderState)) ?? on[0];
+}
+
+// The race name of the event's biggest day, unless it's just "Standard": "Gold Cup Final QUADRUPLE" -> "Gold Cup Final".
+function eventName(list: Race[]): string | null {
+  const top = [...list].sort((a, b) => multiplier(b.raceType) - multiplier(a.raceType))[0];
+  const name = raceLabel(top.raceType).split(' · ')[0];
+  return /^standard$/i.test(name) ? null : name;
 }
 
 function winsText(races: Race[]): string {
