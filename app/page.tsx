@@ -5,7 +5,7 @@ import { TRACKED, currentSeason, getRiderTables } from '@/lib/riders';
 import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
-import { getEvent, getPoints, getProfile, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
+import { getEvent, getNationals, getPoints, getProfile, nationalDayTitles, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
 import { CardOrder } from './card-order';
 import { Tour } from './tour';
@@ -23,6 +23,10 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
   const wins = races.filter(r => r.finish === 1).length;
   const last = races[0];
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
+  // A day at a national lists "USA BMX" as its track; name it after the national instead.
+  const lastTitle = last?.track === 'USA BMX'
+    ? (await nationalDayTitles([last], await getNationals(year).catch(() => []), profile?.state ?? null)).get(last.date)?.full
+    : undefined;
   // District age (the age the rider turns this year) goes with the level, the way classes are named: "10 Inter".
   const age = profile ? getRiderAge(profile, year).label : null;
   const badge = [age, profile?.level].filter(x => x != null).join(' ');
@@ -40,7 +44,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
       </p>
       {last ? (
         <p className="muted small">
-          Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{last.track}</Link> : last.track}: {last.finish > 0 ? `${ordinal(last.finish)} of ${last.riders}` : `DNQ (did not qualify), ${last.riders} riders`}
+          Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{lastTitle ?? last.track}</Link> : lastTitle ?? last.track}: {last.finish > 0 ? `${ordinal(last.finish)} of ${last.riders}` : `DNQ (did not qualify), ${last.riders} riders`}
         </p>
       ) : null}
       <Link href={`/riders/${profileId}`} className="card-more">Races, points and gaps ›</Link>
