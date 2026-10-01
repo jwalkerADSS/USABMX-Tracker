@@ -10,6 +10,7 @@
 // - Transponder: my.sqorz.com keeps every lap a transponder has done, at any Sqorz track.
 import 'server-only';
 import sqorzIndex from '@/data/sqorz-index.json';
+import riderIndex from '@/data/rider-index.json';
 import { titleCase, type Race } from './usabmx';
 
 const OUR = 'https://our.sqorz.com';
@@ -48,9 +49,12 @@ export type Lap = {
   bike: 'class' | 'cruiser';
   compare: string | null; // key into LapTimes.comparisons
 };
-export type CompareEntry = { name: string; ms: number; date: string; info: string | null; self: boolean };
+// profileId: the rider's USA BMX profile, when exactly one rider in the search index fits.
+export type CompareEntry = { name: string; ms: number; date: string; info: string | null; self: boolean; profileId: number | null };
+// What Sqorz says about the rider, used to find their USA BMX profile.
+type Entry = Omit<CompareEntry, 'profileId'> & { key: string; state: string | null; age: number | null };
 // Everyone timed at a location, one best time each, fastest first.
-type Comparison = { label: string; entries: CompareEntry[] };
+type Comparison = { label: string; entries: Entry[] };
 // For the dialog: where a lap would rank among the other riders' best times there, the fastest of them,
 // and the 2 just faster and 2 just slower.
 export type LapCompare = { label: string; rank: number; total: number; fastest: CompareEntry | null; faster: CompareEntry[]; slower: CompareEntry[] };
@@ -143,6 +147,7 @@ function boardComparisons(code: string, track: string, year: number, board: Lead
     const info = [m.age != null ? `Age ${m.age}` : null, cls ? classNames.get(cls.classCode) : null].filter(Boolean).join(' · ');
     (out[key] ??= { label: `${track}, ${year}${l.classType === '24' ? ' cruiser' : ''}`, entries: [] }).entries.push({
       name: titleCase(`${m.firstName} ${m.lastName}`), ms: best.time, date: eventDate(board, best), info: info || null, self: l.memberId === selfId,
+      key: nameKey(m.firstName, m.lastName), state: homeState(m.groupName), age: m.age ?? null,
     });
   }
   for (const c of Object.values(out)) c.entries.sort((a, b) => a.ms - b.ms);
@@ -233,7 +238,7 @@ async function nationalLaps(rider: RiderMatch, year: number) {
     const ev = await getJson<EventRanks>(`${OUR}/json/event/${day.id}`).catch(() => null);
     if (!ev) return;
     const location = nationalName(day.name);
-    const best = new Map<string, CompareEntry & { bike: Lap['bike'] }>();
+    const best = new Map<string, Entry & { bike: Lap['bike'] }>();
     for (const c of ev.classRanks ?? []) {
       for (const r of c.competitorRankSummaries ?? []) {
         const self = nameKey(r.firstName, r.lastName) === nameKey(rider.firstName, rider.lastName) && ageFits(rider, r.age, year);
@@ -244,7 +249,10 @@ async function nationalLaps(rider: RiderMatch, year: number) {
           const bike = bikeOf(c.classType);
           const k = `${r.memberId}/${bike}`;
           if (!best.has(k) || best.get(k)!.ms > ms) {
-            best.set(k, { name: titleCase(`${r.firstName} ${r.lastName}`), ms, date: day.date, info: c.className, self, bike });
+            best.set(k, {
+              name: titleCase(`${r.firstName} ${r.lastName}`), ms, date: day.date, info: c.className, self, bike,
+              key: nameKey(r.firstName, r.lastName), state: homeState(r.groupName), age: r.age ?? null,
+            });
           }
           if (!self) continue;
           laps.push({
@@ -359,9 +367,38 @@ function compareLap(ms: number, c: Comparison): LapCompare {
   const faster = others.slice(Math.max(0, split - 2), split);
   return {
     label: c.label, rank: split + 1, total: others.length + 1,
-    fastest: split > 0 && !faster.includes(others[0]) ? others[0] : null,
-    faster, slower: others.slice(split, split + 2),
+    fastest: split > 0 && !faster.includes(others[0]) ? withProfile(others[0]) : null,
+    faster: faster.map(withProfile), slower: others.slice(split, split + 2).map(withProfile),
   };
+}
+
+// ---- Linking compared riders to their USA BMX profiles ----------------------------------
+
+type IndexRow = { profileId: number; name: string; ageGroup: string | null; district: string | null };
+let byName: Map<string, IndexRow[]> | null = null;
+
+// "16 Expert" -> [16, 16], "17-20 Expert" -> [17, 20]
+function ageRange(group: string | null): [number, number] | null {
+  const m = group?.match(/^(\d+)(?:\s*-\s*(\d+))?/);
+  return m ? [Number(m[1]), Number(m[2] ?? m[1])] : null;
+}
+
+// A name links only when one rider in the search index fits it: same name, and the age group and
+// district state (when both sides know them) agree with what Sqorz has. Otherwise it stays plain text.
+function withProfile({ key, state, age, ...e }: Entry): CompareEntry {
+  byName ??= (riderIndex as { riders: IndexRow[] }).riders.reduce((m, r) => {
+    const k = nameKey(r.name, '');
+    m.set(k, [...(m.get(k) ?? []), r]);
+    return m;
+  }, new Map<string, IndexRow[]>());
+  const fits = (byName.get(key) ?? []).filter(r => {
+    const range = ageRange(r.ageGroup);
+    const rState = r.district?.slice(0, 2) ?? null;
+    return (age == null || !range || (age >= range[0] - 1 && age <= range[1] + 1)) && (state == null || rState == null || state === rState);
+  });
+  const sameState = fits.filter(r => state != null && r.district?.startsWith(state));
+  const one = fits.length === 1 ? fits[0] : sameState.length === 1 ? sameState[0] : null;
+  return { ...e, profileId: one?.profileId ?? null };
 }
 
 export const sqorzIndexBuiltAt = INDEX.builtAt;

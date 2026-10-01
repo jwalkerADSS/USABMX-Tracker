@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
 import { ordinal } from '@/lib/format';
 import type { CompareEntry, LapTimes } from '@/lib/sqorz';
@@ -136,7 +137,7 @@ function Compare({ lap, name }: { lap: Lap; name: string }) {
   const row = (e: CompareEntry, key: string) => (
     <li key={key}>
       <span className="cmp-name">
-        {e.name}
+        {e.profileId ? <Link href={`/riders/${e.profileId}`}>{e.name}</Link> : e.name}
         <span className="muted small">{[e.info, day(e.date)].filter(Boolean).join(' · ')}</span>
       </span>
       <span className="cmp-time">{time(e.ms)}<span className="muted small">{gap(e.ms - lap.ms)}</span></span>
