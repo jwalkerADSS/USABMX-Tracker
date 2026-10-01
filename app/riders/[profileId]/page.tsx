@@ -6,7 +6,7 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getNationals, getPoints, nationalDayTitles, nationalOn, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
+  LEVEL_LABELS, getNationalRaces, getNationals, getPoints, nationalDayTitles, nationalOn, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
   type DayTitle, type FieldEntry, type Level, type National, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { higherLevel, multiplier, raceLabel, racePoints, raisedRaces } from '@/lib/points';
@@ -39,7 +39,9 @@ export default async function RiderPage({ params, searchParams }: Props) {
   if (!profile) notFound();
   const tracked = await getRiderTables(profileId).catch(() => null);
   const name = `${profile.firstName} ${profile.lastName}`;
-  const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
+  const [points, history] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
+  const nationalRaces = await getNationalRaces(year, { name, state: profile.state }, history).catch(() => [] as Race[]);
+  const races = [...history, ...nationalRaces].sort((a, b) => b.date.localeCompare(a.date));
   const riderAge = getRiderAge(profile, currentSeason());
   const age = riderAge.label;
   // Newest or oldest first; the first five shown also get who they raced against.
@@ -67,7 +69,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const first = Math.max(2017, Number(profile.memberSince?.slice(0, 4)) || 2017);
   const raced = await racedSeasons(profile.memberId, first, currentSeason()).catch(() => [] as number[]);
   const years = [...new Set([currentSeason(), year, ...raced])].sort((a, b) => b - a);
-  const noField = (r: Race): RaceField => ({ trackId: trackIds.get(r.track) ?? null, moto: null, field: null });
+  const noField = (r: Race): RaceField => ({ trackId: r.raceDayId ? null : trackIds.get(r.track) ?? null, moto: null, field: null });
 
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
@@ -288,7 +290,7 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false, title }: 
         <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{race.finish > 0 ? ordinal(race.finish) : /bal(ance|\.)?\s*bike/i.test(race.ageGroup) ? '–' : 'DNQ'}</span>
         <div className="race-body">
           <div className="race-title">
-            <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{title ?? race.track}</Link></strong>
+            <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}${race.raceDayId ? `?day=${race.raceDayId}` : ''}`}>{title ?? race.track}</Link></strong>
             {points ? <span className="race-points">+{pts(points.district)}</span> : null}
 
           </div>

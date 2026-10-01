@@ -93,6 +93,8 @@ export type Race = {
   finish: number;
   riders: number;
   bike: 'class' | 'cruiser';
+  // Set on national days added from posted results (see getNationalRaces): the day to open on the event page.
+  raceDayId?: number;
 };
 
 export async function getRaceHistory(memberId: number, year: number): Promise<Race[]> {
@@ -228,6 +230,8 @@ export type FieldEntry = ResultRider & { self: boolean; level: string | null };
 export type RaceField = { trackId: number | null; moto: string | null; field: FieldEntry[] | null };
 
 export async function getRaceField(race: Race, memberId: number): Promise<RaceField> {
+  // National results have no member ids, so the rider's moto can't be picked out.
+  if (race.raceDayId) return { trackId: null, moto: null, field: null };
   const event = await getEvent(race.raceId);
   const day = event.days.find(d => d.date === race.date) ?? event.days[0];
   if (!day) return { trackId: event.trackId, moto: null, field: null };
@@ -248,7 +252,7 @@ export async function getRaceField(race: Race, memberId: number): Promise<RaceFi
 // Races are newest first, so the most recent race at a track stands for it.
 export async function getTrackIds(races: Race[]): Promise<Map<string, number>> {
   const byTrack = new Map<string, number>();
-  for (const r of races) if (!byTrack.has(r.track)) byTrack.set(r.track, r.raceId);
+  for (const r of races) if (!byTrack.has(r.track) && !r.raceDayId) byTrack.set(r.track, r.raceId);
   const ids = await Promise.all([...byTrack].map(([track, raceId]) =>
     getEvent(raceId).then(e => [track, e.trackId] as const, () => [track, null] as const)));
   return new Map(ids.filter((x): x is readonly [string, number] => x[1] != null));
@@ -347,12 +351,12 @@ export type RiderNational = National & { finishes: NationalFinish[] };
 // event finishers, by name and hometown. So a rider's nationals are found by searching every
 // posted national for their name (and home state, to tell apart riders with the same name).
 // Nationals where they didn't make a main can't be found.
-export async function getRiderNationals(year: number, rider: { name: string; state: string | null }): Promise<RiderNational[]> {
+export async function getRiderNationals(year: number, rider: { name: string; state: string | null }, only: (n: National) => boolean = () => true): Promise<RiderNational[]> {
   const name = rider.name.toUpperCase();
   const state = rider.state?.toUpperCase();
   const isRider = (r: ResultRider) =>
     r.name.toUpperCase() === name && (!state || !r.homeState || r.homeState === state);
-  const posted = (await getNationals(year)).filter(n => n.hasResults);
+  const posted = (await getNationals(year)).filter(n => n.hasResults && only(n));
   const found = await mapLimit(posted, 6, async n => {
     const event = await getEvent(n.raceId).catch(() => null);
     const finishes: NationalFinish[] = [];
@@ -365,6 +369,22 @@ export async function getRiderNationals(year: number, rider: { name: string; sta
     return { ...n, finishes };
   });
   return found.filter(n => n.finishes.length);
+}
+
+// Race history stopped listing nationals after October 2025 (earlier ones show up at track "USA BMX"), so a
+// season's other nationals are added from their posted results as races at "USA BMX". Results only list each
+// class's main (1st-8th), so days a rider didn't make the main can't be added. Nationals that overlap a day
+// race history already has are skipped. Seasons before 2025 are left as race history has them.
+export async function getNationalRaces(year: number, rider: { name: string; state: string | null }, history: Race[]): Promise<Race[]> {
+  if (year < 2025) return [];
+  const listed = history.filter(r => r.track === 'USA BMX').map(r => r.date);
+  const nationals = await getRiderNationals(year, rider, n => !listed.some(d => d >= n.begins && d <= n.ends));
+  return nationals.flatMap(n => n.finishes.map((f): Race => ({
+    date: f.date, raceId: n.raceId, raceDayId: f.raceDayId, raceType: 'National', track: 'USA BMX', state: n.state ?? '',
+    level: /cruiser/i.test(f.className) ? 'Cruiser' : /open/i.test(f.className) ? 'Open'
+      : /novice/i.test(f.className) ? 'Novice' : /inter/i.test(f.className) ? 'Inter' : /expert/i.test(f.className) ? 'Expert' : f.className,
+    ageGroup: f.className, finish: f.place, riders: f.totalRiders ?? 0, bike: /cruiser/i.test(f.className) ? 'cruiser' : 'class',
+  })));
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
