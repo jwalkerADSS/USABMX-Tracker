@@ -1,6 +1,6 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { ACCOUNT_PREFIX, SESSION_COOKIE, SESSION_DAYS, TEST_USER, createSession, verifySession } from './auth';
+import { ACCOUNT_PREFIX, SESSION_COOKIE, TEST_USER, createSession, sessionCookie, verifySession } from './auth';
 import { getAccount, type Account } from './accounts';
 
 // The rider the Test user chose, kept on their device.
@@ -21,9 +21,7 @@ export async function currentAccount(): Promise<Account | null> {
 }
 
 export async function startSession(who: string, trialEnds?: number): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE, await createSession(who, trialEnds), {
-    httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: SESSION_DAYS * 86_400,
-  });
+  (await cookies()).set(SESSION_COOKIE, await createSession(who, trialEnds), sessionCookie());
 }
 
 export async function chosenRider(): Promise<number | null> {

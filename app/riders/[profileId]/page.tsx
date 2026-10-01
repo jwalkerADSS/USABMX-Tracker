@@ -59,16 +59,15 @@ export default async function RiderPage({ params, searchParams }: Props) {
 
   return (
     <>
-      <Nav back />
+      <Nav back title={
+        <>
+          <h1>{name}</h1>
+          {/* District age with the level, like the landing page cards: "10 Inter". */}
+          {age != null || profile.level ? <span className="badge">{[age, profile.level].filter(x => x != null).join(' ')}</span> : null}
+        </>
+      } />
       <main className="stack">
         <section className="card">
-          <div className="rider-head">
-            <h1>{name}</h1>
-            <div className="badges">
-              {age != null ? <span className="badge age">District age {age}</span> : null}
-              {profile.level ? <span className="badge">{profile.level}</span> : null}
-            </div>
-          </div>
           <p className="muted">
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>

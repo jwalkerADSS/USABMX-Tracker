@@ -39,6 +39,9 @@ p { margin: 4px 0; }
 .nav nav { display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; }
 .nav .link { white-space: nowrap; }
 .brand { font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
+.nav.with-title { border-bottom: 1px solid var(--card-2); }
+.nav-title { flex-basis: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.nav-title h1 { margin: 0; font-size: 1.35rem; min-width: 0; }
 
 button, input {
   font: inherit; border-radius: 10px; border: 1px solid #2c4c7c; padding: 10px 12px;
@@ -47,6 +50,8 @@ button, input {
 button { background: var(--accent); border-color: var(--accent); font-weight: 700; cursor: pointer; }
 button.link { background: none; border: none; padding: 0; color: var(--muted); font-weight: 600; }
 label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+label.check { flex-direction: row; align-items: center; gap: 10px; font-weight: 500; }
+label.check input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
 
 .login { max-width: 380px; padding-top: 12vh; }
 .login h1 { text-align: center; margin-bottom: 20px; font-size: 1.8rem; }

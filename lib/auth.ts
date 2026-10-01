@@ -3,7 +3,10 @@
 // Uses Web Crypto so it runs in both middleware (edge) and route handlers.
 
 export const SESSION_COOKIE = 'bmx_session';
-export const SESSION_DAYS = 90;
+// "Stay signed in" keeps the sign-in for a year on that device; without it, it lasts until the browser or app is
+// closed, and at most a day.
+export const SESSION_DAYS = 365;
+const SHORT_SESSION_MS = 86_400_000;
 
 const enc = new TextEncoder();
 
@@ -49,8 +52,8 @@ export function checkCredentials(email: string, password: string): boolean {
 
 // Cookie value: "<who>|<expiry ms>|<signature>", or "<who>|<expiry ms>|trial|<signature>" for a trial account,
 // whose session ends when the trial does.
-export async function createSession(who: string, trialEnds?: number): Promise<string> {
-  const expiry = Math.min(Date.now() + SESSION_DAYS * 86_400_000, trialEnds ?? Infinity);
+export async function createSession(who: string, trialEnds?: number, remember = true): Promise<string> {
+  const expiry = Math.min(Date.now() + (remember ? SESSION_DAYS * 86_400_000 : SHORT_SESSION_MS), trialEnds ?? Infinity);
   const payload = `${who.trim().toLowerCase()}|${expiry}${trialEnds ? '|trial' : ''}`;
   return `${payload}|${await hmac(payload)}`;
 }
@@ -64,6 +67,11 @@ async function readSession(value: string | undefined): Promise<{ who: string; ex
   const [who, expiry, kind] = payload.split('|');
   if (!who || !isAllowed(who)) return null;
   return { who, expired: !(Number(expiry) >= Date.now()), trial: kind === 'trial' };
+}
+
+// Cookie settings to go with createSession: a lasting cookie, or one that ends when the browser closes.
+export function sessionCookie(remember = true) {
+  return { httpOnly: true, secure: true, sameSite: 'lax' as const, path: '/', ...(remember ? { maxAge: SESSION_DAYS * 86_400 } : {}) };
 }
 
 export async function verifySession(value: string | undefined): Promise<string | null> {

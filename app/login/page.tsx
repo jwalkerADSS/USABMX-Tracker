@@ -38,6 +38,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           Password
           <PasswordInput name="password" autoComplete="current-password" required />
         </label>
+        <label className="check">
+          <input type="checkbox" name="remember" defaultChecked />
+          Stay signed in on this device
+        </label>
         {next ? <input type="hidden" name="next" value={next} /> : null}
         {error ? <p className="error">{ERRORS[error] ?? ERRORS['1']}</p> : null}
         {adminMailto(error) ? <a href={adminMailto(error)!} className="button secondary">Email the admin</a> : null}
