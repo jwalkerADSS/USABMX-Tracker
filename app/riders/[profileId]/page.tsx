@@ -11,15 +11,15 @@ import {
 } from '@/lib/usabmx';
 import { currentPlates } from '@/lib/plates';
 import { higherLevel, multiplier, raceLabel, racePoints, raisedRaces } from '@/lib/points';
-import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
+import { winsByTrack } from '@/lib/records';
 import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
-import { RaceControls, type RaceSort } from './race-controls';
+import { LinkSelect, RaceControls, type RaceSort } from './race-controls';
 import { Fold } from '../../fold';
 
 export const maxDuration = 60;
 
-type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string; sort?: string; more?: string; wins?: string }> };
+type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string; sort?: string; more?: string; wins?: string; record?: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const profile = await getProfile(Number((await params).profileId)).catch(() => null);
@@ -75,15 +75,23 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const years = [...new Set([currentSeason(), year, ...raced])].sort((a, b) => b - a);
   const noField = (r: Race): RaceField => ({ trackId: r.raceDayId ? null : trackIds.get(r.track) ?? null, moto: null, field: null });
 
+  // The record card has its own season picker, which always opens on this season (Josh, 2026-10-01).
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
-  const wins = races.filter(r => r.finish === 1).length;
-  const podiums = races.filter(r => r.finish === 2 || r.finish === 3).length;
-  // Wins by track, Top track and Worst track only count local tracks: events USA BMX runs itself (nationals,
-  // Gold Cup finals, the Grands) are left out (Josh's call, 2026-10-01).
+  const recordYear = years.includes(Number(query.record)) ? Number(query.record) : currentSeason();
+  const recordRaces = recordYear === year ? races : await getRaceHistory(profile.memberId, recordYear)
+    .then(async h => [...h, ...await getNationalRaces(recordYear, { name, state: profile.state }, h).catch(() => [] as Race[])])
+    .catch(() => [] as Race[]);
+  const wins = recordRaces.filter(r => r.finish === 1).length;
+  const podiums = recordRaces.filter(r => r.finish === 2 || r.finish === 3).length;
+  const pageHref = (q: Record<string, string | number | null>) => {
+    const all = { year, sort: sort === 'newest' ? null : sort, more: more ? 1 : null, wins: allTime ? 'all' : null, record: recordYear === currentSeason() ? null : recordYear, ...q };
+    const qs = Object.entries(all).filter(([, v]) => v != null).map(([k, v]) => `${k}=${v}`).join('&');
+    return `/riders/${profileId}${qs ? `?${qs}` : ''}`;
+  };
+  // Wins by track only counts local tracks: events USA BMX runs itself (nationals, Gold Cup finals, the Grands)
+  // are left out (Josh's call, 2026-10-01).
   const local = (rs: Race[]) => rs.filter(r => r.track !== 'USA BMX');
   const tracks = winsByTrack(local(races));
-  const top = tracks[0];
-  const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
 
   // Wins by track for this season, or all time: every season the rider raced.
   const allRaces = allTime
@@ -91,8 +99,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
     : local(races);
   const winsTracks = allTime ? winsByTrack(allRaces) : tracks;
   const winsTrackIds = allTime ? new Map([...await getTrackIds(allRaces).catch(() => new Map<string, number>()), ...trackIds]) : trackIds;
-  const winsHref = (all: boolean) =>
-    `/riders/${profileId}?year=${year}${sort === 'newest' ? '' : `&sort=${sort}`}${more ? '&more=1' : ''}${all ? '&wins=all' : ''}#wins`;
+  const winsHref = (all: boolean) => `${pageHref({ wins: all ? 'all' : null })}#wins`;
 
   return (
     <>
@@ -112,20 +119,18 @@ export default async function RiderPage({ params, searchParams }: Props) {
           {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
         </Fold>
 
-        <Fold id="record" title={`${year} record`}>
-          <h2>{year} record</h2>
+        <Fold id="record" title={`${recordYear} record`}>
+          <h2>{recordYear} record</h2>
+          <div className="lap-controls race-controls">
+            <LinkSelect label="Season" value={String(recordYear)}
+              options={years.map(y => ({ value: String(y), label: String(y), href: `${pageHref({ record: y === currentSeason() ? null : y })}#record` }))} />
+          </div>
           <div className="stats">
-            <Stat label="Races" value={races.length} />
+            <Stat label="Races" value={recordRaces.length} />
             <Stat label="Wins" value={wins} />
             <Stat label="Podiums (2nd–3rd)" value={podiums} />
-            <Stat label="Other finishes" value={races.length - wins - podiums} />
+            <Stat label="Other finishes" value={recordRaces.length - wins - podiums} />
           </div>
-          {top ? (
-            <div className="track-best">
-              <TrackTile label="Top track" t={top} id={trackIds.get(top.track)} />
-              {worst && worst.track !== top.track ? <TrackTile label="Worst track" t={worst} id={trackIds.get(worst.track)} /> : null}
-            </div>
-          ) : null}
         </Fold>
 
         {tracks.length > 1 || years.length > 1 ? (
@@ -253,16 +258,6 @@ async function LapTimesSection({ rider, year, races }: { rider: RiderMatch; year
         carry a transponder, and nationals don&apos;t time Novice or Intermediate motos.{data?.laps.length ? ' Tap a time to compare it with other riders there.' : ''}
       </p>
     </>
-  );
-}
-
-function TrackTile({ label, t, id }: { label: string; t: TrackRecord; id?: number | null }) {
-  return (
-    <div className="track-tile">
-      <span className="stat-label">{label}</span>
-      <strong>{id ? <Link href={`/tracks/${id}`}>{t.track}</Link> : t.track}</strong>
-      <span className="muted small">{t.wins} {t.wins === 1 ? 'win' : 'wins'} in {t.races} {t.races === 1 ? 'race' : 'races'}</span>
-    </div>
   );
 }
 

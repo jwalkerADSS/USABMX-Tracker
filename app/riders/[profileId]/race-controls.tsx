@@ -26,3 +26,16 @@ export function RaceControls({ profileId, year, years, sort }: { profileId: numb
     </div>
   );
 }
+
+// A drop-down where each choice opens its own link (the server works out each link).
+export function LinkSelect({ label, value, options }: { label: string; value: string; options: { value: string; label: string; href: string }[] }) {
+  const router = useRouter();
+  return (
+    <label className="lap-sort">
+      <span className="muted small">{label}</span>
+      <select value={value} onChange={e => { const o = options.find(x => x.value === e.target.value); if (o) router.push(o.href, { scroll: false }); }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
+  );
+}
