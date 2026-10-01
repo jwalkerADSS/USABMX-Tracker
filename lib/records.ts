@@ -2,7 +2,7 @@ import type { Race } from './usabmx';
 
 export type TrackRecord = { track: string; state: string; wins: number; races: number };
 
-// Wins at each track raced, most wins first (ties: better win rate, then more races).
+// Wins at each track raced, best win rate first. Ties: more wins first; among 0% tracks, fewest races first.
 export function winsByTrack(races: Race[]): TrackRecord[] {
   const byTrack = new Map<string, TrackRecord>();
   for (const r of races) {
@@ -11,10 +11,5 @@ export function winsByTrack(races: Race[]): TrackRecord[] {
     if (r.finish === 1) t.wins++;
     byTrack.set(r.track, t);
   }
-  return [...byTrack.values()].sort((a, b) => b.wins - a.wins || b.wins / b.races - a.wins / a.races || b.races - a.races);
-}
-
-// Fewest wins; among ties, the one raced most often (the lowest win rate).
-export function worstTrack(records: TrackRecord[]): TrackRecord | undefined {
-  return [...records].sort((a, b) => a.wins - b.wins || a.wins / a.races - b.wins / b.races || b.races - a.races)[0];
+  return [...byTrack.values()].sort((a, b) => b.wins / b.races - a.wins / a.races || b.wins - a.wins || a.races - b.races);
 }
