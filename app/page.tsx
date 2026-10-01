@@ -5,8 +5,9 @@ import { TRACKED, currentSeason, getRiderTables } from '@/lib/riders';
 import { chosenRider, currentAccount, currentUser, isTestUser } from '@/lib/session';
 import { ACCOUNT_PREFIX } from '@/lib/auth';
 import { searchRiders } from '@/lib/search';
-import { getEvent, getNationals, getPoints, getProfile, nationalDayTitles, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
+import { getEvent, getGoldCupFinals, getNationals, getPoints, getProfile, nationalDayTitles, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
+import { currentPlates } from '@/lib/plates';
 import { CardOrder } from './card-order';
 import { Tour } from './tour';
 import { formatDate, ordinal } from '@/lib/format';
@@ -22,6 +23,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
     : null;
   const wins = races.filter(r => r.finish === 1).length;
   const last = races[0];
+  const plates = currentPlates(points, await getGoldCupFinals(year).catch(() => []), year);
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
   // A day at a national lists "USA BMX" as its track; name it after the national instead.
   const lastTitle = last?.track === 'USA BMX'
@@ -38,6 +40,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
       </div>
       {profile?.homeTrack ? <p className="muted">{profile.homeTrack}</p> : null}
       <RankRow points={points} profileId={profileId} tables={tables} goldCup={goldCup} />
+      {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
       <p className="record">
         {year}: <strong>{wins}</strong> wins in <strong>{races.length}</strong> races
         {races.length ? ` (${Math.round((wins / races.length) * 100)}%)` : ''}

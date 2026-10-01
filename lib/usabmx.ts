@@ -69,15 +69,17 @@ export async function getProfile(profileId: number): Promise<Profile | null> {
 }
 
 export type PointsEntry = { type: string; skill: string; points: number; rank: number };
-export type Plate = { plateType: string; season: string; value: string; regionName: string | null };
+export type Plate = { plateType: string; season: string; value: string; regionName: string | null; regionAbbr?: string | null; bike: 'class' | 'cruiser' };
 export type Points = { class: PointsEntry[]; cruiser: PointsEntry[]; plates: Plate[] };
 
 export async function getPoints(profileId: number): Promise<Points> {
-  type Res = { data: { name: string; results: { type: string; details: { skill: string; points: number; rank: number } }[]; plates: Plate[] }[] | null };
+  type Res = { data: { name: string; results: { type: string; details: { skill: string; points: number; rank: number } }[]; plates: Omit<Plate, 'bike'>[] }[] | null };
   const res = await api<Res>(`dashboard/my-points/${profileId}`);
   const pick = (name: string) =>
     (res.data ?? []).find(x => x.name === name)?.results.map(r => ({ type: r.type, ...r.details })) ?? [];
-  return { class: pick('class'), cruiser: pick('cruiser'), plates: (res.data ?? []).flatMap(x => x.plates ?? []) };
+  // Each bike lists its own plates: a rider can hold a class and a cruiser plate in the same series.
+  const plates = (res.data ?? []).flatMap(x => (x.plates ?? []).map(p => ({ ...p, bike: x.name === 'cruiser' ? 'cruiser' as const : 'class' as const })));
+  return { class: pick('class'), cruiser: pick('cruiser'), plates };
 }
 
 // ---- Race history -------------------------------------------------------------
@@ -343,6 +345,31 @@ export async function nationalDayTitles(races: Race[], nationals: National[], ri
     titles.set(date, own ? { full: own, day: own } : { full: `${n.name} Day ${i + 1}`, day: `Day ${i + 1}` });
   }));
   return titles;
+}
+
+// ---- Gold Cup finals ---------------------------------------------------------------
+
+export const REGION_SHORT: Record<string, string> = {
+  'North West': 'NW', 'South West': 'SW', 'North Central': 'NC', 'South Central': 'SC', 'North East': 'NE', 'South East': 'SE',
+};
+export type GoldCupFinal = { raceId: number; region: string; begins: string; ends: string };
+
+// Each region's Gold Cup Final in a season ("Gold Cup Final SW"), with its region as a short code.
+export async function getGoldCupFinals(year: number): Promise<GoldCupFinal[]> {
+  type Row = { id: number; name: string; begins_on: string; ends_on: string | null; region: string | null };
+  type Res = { total_records?: number; data?: Row[] };
+  const rows: Row[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await api<Res>(`events/event-list?filter_list=past&event_type=GOLDCUP&event_date_from=${year}-01-01&page_number=${page}&page_limit=5`);
+    rows.push(...(res.data ?? []));
+    if (!res.data?.length || page * 5 >= (res.total_records ?? 0)) break;
+  }
+  return rows
+    .filter(r => /final/i.test(r.name) && r.begins_on?.startsWith(String(year)))
+    .map(r => ({
+      raceId: r.id, region: r.name.match(/\b(NW|SW|NC|SC|NE|SE)\b/)?.[1] ?? (r.region ? REGION_SHORT[r.region] ?? r.region : ''),
+      begins: r.begins_on.slice(0, 10), ends: (r.ends_on ?? r.begins_on).slice(0, 10),
+    }));
 }
 
 export type NationalFinish = { raceDayId: number; date: string; className: string; place: number; totalRiders: number | null };
