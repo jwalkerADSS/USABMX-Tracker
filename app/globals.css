@@ -252,6 +252,8 @@ button.lap:active { background: var(--card-2); }
 .lap-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .lap-splits { color: #c9d6ea; font-variant-numeric: tabular-nums; }
 .lap-more { width: 100%; margin-top: 8px; }
+/* A link that looks like the lap times "Show all" button (button.secondary.lap-more). */
+a.more-button { display: block; margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--card-2); background: var(--card-2); color: var(--text); font-weight: 700; text-align: center; text-decoration: none; }
 .lap-dialog {
   width: calc(100% - 24px); max-width: 480px; max-height: 85vh; padding: 16px; border: 1px solid var(--card-2);
   border-radius: var(--radius); background: var(--card); color: var(--text);
