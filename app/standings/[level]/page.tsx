@@ -85,7 +85,10 @@ export default async function StandingsPage({ params, searchParams }: Props) {
           )}
           <Pager page={table.page} lastPage={table.lastPage} href={href} />
           <p className="muted small">
-            A dash means USA BMX lists the rider without a ranking. <a href={table.url}>View on USA BMX</a>
+            {level === 'district'
+              ? "A dash (-) next to a rider's name means they are currently ranked in the top 10 nationwide for NAG standings. "
+              : 'A dash means USA BMX lists the rider without a ranking. '}
+            <a href={table.url}>View on USA BMX</a>
           </p>
         </section>
         {showNationals ? (
