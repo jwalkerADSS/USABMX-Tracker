@@ -140,7 +140,7 @@ async function RiderNationals({ year, name, profileId }: { year: number; name: s
                   {where ? <span className="muted small">{where}</span> : null}
                   {n.finishes.map(f => (
                     <span key={f.raceDayId + f.className} className="small nat-finish">
-                      {formatDate(f.date)}: {f.place ? ordinal(f.place) : '–'} in the {f.className} main{f.totalRiders ? ` (${f.totalRiders} riders)` : ''}
+                      {formatDate(f.date)}: {f.place ? ordinal(f.place) : 'DNQ'} in the {f.className} main{f.totalRiders ? ` (${f.totalRiders} riders)` : ''}
                     </span>
                   ))}
                 </span>

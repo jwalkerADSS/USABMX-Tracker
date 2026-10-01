@@ -10,10 +10,10 @@ const short = (type: string) => SHORT[type] ?? (type.startsWith('State') ? 'Stat
 export function RankRow({ points, profileId, tables, goldCup }: { points: Points; profileId?: number; tables?: Tables; goldCup?: Standing | null }) {
   if (!points.class.length && !goldCup) return <p className="muted small">No points yet this season.</p>;
   const link = (level: string | null) => (profileId && tables && level && level in tables ? `/standings/${level}?rider=${profileId}#me` : null);
-  const tiles = points.class.map(p => ({ key: p.type, label: short(p.type), place: `#${num(p.rank)}`, sub: pts(p.points), href: link(levelOfPointsType(p.type)) }));
+  const tiles = points.class.map(p => ({ key: p.type, label: short(p.type), place: p.rank ? `#${num(p.rank)}` : '–', sub: pts(p.points), href: link(levelOfPointsType(p.type)) }));
   // USA BMX doesn't include Gold Cup in a rider's points, so it comes from the Gold Cup table itself.
   if (goldCup) {
-    const gc = { key: 'goldCup', label: 'Gold Cup', place: goldCup.found ? `#${num(goldCup.place!)}` : '–', sub: goldCup.found ? pts(goldCup.points!) : 'Not ranked', href: link('goldCup') };
+    const gc = { key: 'goldCup', label: 'Gold Cup', place: goldCup.found && goldCup.place ? `#${num(goldCup.place)}` : '–', sub: goldCup.found ? pts(goldCup.points!) : 'Not ranked', href: link('goldCup') };
     tiles.splice(Math.min(2, tiles.length), 0, gc);
   }
   return (
