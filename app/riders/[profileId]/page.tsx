@@ -211,8 +211,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
                   : <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact title={raceTitle(r, dayTitles, 'full')} />)}
               </ul>
               {races.length > detailed.length ? (
-                <Link className="card-more" href={`/riders/${profileId}?year=${year}${sort === 'oldest' ? '&sort=oldest' : ''}${more ? '' : '&more=1'}#races`}>
-                  {more ? 'Show fewer' : `Show all ${races.length} races ›`}
+                <Link className="more-button" href={`${pageHref({ more: more ? null : 1 })}#races`} scroll={false}>
+                  {more ? 'Show fewer' : `Show all ${races.length} races`}
                 </Link>
               ) : null}
             </>
