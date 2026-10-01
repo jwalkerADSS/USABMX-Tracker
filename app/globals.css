@@ -275,3 +275,8 @@ button.lap:active { background: var(--card-2); }
 .lap-group-head { display: flex; flex-direction: column; min-width: 0; }
 .lap-group .laps { border-top: 1px solid #2c4c7c; }
 .lap-group .lap-time { background: var(--card); }
+
+/* Races list: season and sort pickers, and track groups. */
+.race-controls { justify-content: flex-start; flex-wrap: wrap; gap: 8px 16px; margin: 4px 0 10px; }
+.race-group .races { border-top: 1px solid #2c4c7c; padding: 10px 0; margin: 0; }
+.race-group .races li:first-child { padding-top: 0; }
