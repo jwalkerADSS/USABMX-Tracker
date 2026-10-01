@@ -24,7 +24,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
   const last = races[0];
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
   // District age (the age the rider turns this year) goes with the level, the way classes are named: "10 Inter".
-  const age = profile ? (await getRiderAge(profile, year, races)).label : null;
+  const age = profile ? getRiderAge(profile, year).label : null;
   const badge = [age, profile?.level].filter(x => x != null).join(' ');
   return (
     <section className="card rider-card">

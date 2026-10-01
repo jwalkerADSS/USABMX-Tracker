@@ -1,6 +1,7 @@
 // Read-only client for the public USA BMX site. No login: every call here answers anonymously.
 // Endpoints and quirks are documented in spike/README.md.
 import 'server-only';
+import { findIndexed } from './search';
 
 const BASE = 'https://www.usabmx.com';
 const REVALIDATE_SECONDS = 6 * 60 * 60; // results post 2-3 days after a race, so a few hours stale is fine
@@ -118,35 +119,25 @@ export async function getRaceHistory(memberId: number, year: number): Promise<Ra
 
 // ---- Racing age -------------------------------------------------------------
 
-// Standings use the age a rider turns this season. That normally comes from the profile's birth date, but
-// some profiles carry the wrong one (often a parent's), so it is checked against the age group the rider
-// last raced in. label is what to show next to the level: "10", or "17-20" when only the age group is known.
+// Standings use the age a rider turns this season. Use the age search shows for the rider (the age group
+// USA BMX's standings list them in), since some profiles carry the wrong birth date (often a parent's) and
+// riders can race motos outside their age. Riders search doesn't know fall back to the birth date.
+// label is what to show next to the level: "10", or "17-20" when the standings group spans several ages.
 export type RiderAge = { age: number | null; label: string | null; birthYear: number | null };
 
-function raceAgeRange(ageGroup: string): { lo: number; hi: number } | null {
-  if (/pro|open|mixed/i.test(ageGroup)) return null; // pro and open classes span many ages
-  const m = ageGroup.match(/^(\d+)(?:\s*-\s*(\d+)|\s*&\s*(Under|Over))?/i);
-  if (!m) return null;
-  const n = Number(m[1]);
-  if (m[2]) return { lo: n, hi: Number(m[2]) };
-  if (m[3]?.toLowerCase() === 'under') return { lo: 1, hi: n };
-  if (m[3]?.toLowerCase() === 'over') return { lo: n, hi: 120 };
-  return { lo: n, hi: n };
-}
-
-export async function getRiderAge(profile: Profile, season: number, racesThisSeason?: Race[]): Promise<RiderAge> {
+export function getRiderAge(profile: Profile, season: number): RiderAge {
   const birthYear = Number(profile.birthdate?.slice(0, 4)) || null;
   const fromBirth = birthYear && birthYear > 1900 ? season - birthYear : null;
-  let races = racesThisSeason ?? (await getRaceHistory(profile.memberId, season).catch(() => [] as Race[]));
-  if (!races.some(r => r.bike === 'class')) races = await getRaceHistory(profile.memberId, season - 1).catch(() => [] as Race[]);
-  const latest = races.filter(r => r.bike === 'class').map(r => ({ r, range: raceAgeRange(r.ageGroup) })).find(x => x.range);
-  if (!latest) return { age: fromBirth, label: fromBirth != null ? String(fromBirth) : null, birthYear };
-  const since = season - Number(latest.r.date.slice(0, 4));
-  const { lo, hi } = latest.range!;
-  // On race day a rider is the age they turn that year or one younger.
-  if (fromBirth != null && fromBirth >= lo + since && fromBirth <= hi + since + 1) return { age: fromBirth, label: String(fromBirth), birthYear };
-  if (lo === hi) return { age: lo + since, label: String(lo + since), birthYear: season - (lo + since) };
-  return { age: lo + since, label: since ? null : latest.r.ageGroup.match(/^[^A-Za-z]+(?:Under|Over)?/)?.[0].trim() ?? null, birthYear: null };
+  const group = findIndexed(profile.profileId, profile.memberId)?.ageGroup?.match(/^(\d+)(?:\s*-\s*(\d+)|\s*&\s*(Under|Over))?/i);
+  if (group) {
+    const lo = Number(group[1]);
+    const hi = group[2] ? Number(group[2]) : group[3]?.toLowerCase() === 'over' ? 120 : lo;
+    const from = group[3]?.toLowerCase() === 'under' ? 1 : lo;
+    // Lap times match riders by birth year: keep the profile's when it fits the group, else the group's own.
+    const fits = fromBirth != null && fromBirth >= from && fromBirth <= hi;
+    return { age: lo, label: group[0].replace(/\s+/g, ' ').trim(), birthYear: fits ? birthYear : lo === hi ? season - lo : null };
+  }
+  return { age: fromBirth, label: fromBirth != null ? String(fromBirth) : null, birthYear: fromBirth != null ? birthYear : null };
 }
 
 // ---- Events, race days and results ------------------------------------------
@@ -529,7 +520,7 @@ export type TableHints = { district?: string; gender?: 'Boys' | 'Girls' };
 // age, level and home state. Boys or Girls comes from the hints or the level, else from finding the
 // rider in the national, NAG or district table; the district from the hints, else from the state's districts.
 export async function findTables(profile: Profile, points: Points, year: number, hints: TableHints = {}): Promise<Tables> {
-  const age = (await getRiderAge(profile, year)).age ?? NaN;
+  const age = getRiderAge(profile, year).age ?? NaN;
   if (!Number.isFinite(age) || age < 1 || age > 120) return {};
   const level = profile.level ?? '';
   const expert = /expert|pro/i.test(level);

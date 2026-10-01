@@ -24,6 +24,7 @@ export function searchRiders(query: string, limit = 50): IndexedRider[] {
   }).slice(0, limit);
 }
 
-export function findIndexed(profileId: number): IndexedRider | undefined {
-  return riders.find(r => r.profileId === profileId);
+// By profile id, or by member id for riders listed under an older duplicate profile.
+export function findIndexed(profileId: number, memberId?: number): IndexedRider | undefined {
+  return riders.find(r => r.profileId === profileId) ?? (memberId ? riders.find(r => r.memberId === memberId) : undefined);
 }
