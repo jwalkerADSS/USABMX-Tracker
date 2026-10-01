@@ -295,7 +295,7 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false, title }: 
 
           </div>
           <p className="muted small">
-            {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' ? ' Cruiser' : ''} · {race.riders} riders
+            {formatDate(race.date)} · {raceLabel(race.raceType)} · {race.ageGroup}{race.bike === 'cruiser' && !/cruiser/i.test(race.ageGroup) ? ' Cruiser' : ''} · {race.riders} riders
             {race.finish > 0 || /bal(ance|\.)?\s*bike/i.test(race.ageGroup) ? '' : ' · DNQ (did not qualify)'}
             {why}
           </p>
