@@ -6,8 +6,8 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getNationals, getPoints, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
-  type FieldEntry, type Level, type National, type Race, type RaceField, type Standing,
+  LEVEL_LABELS, getNationals, getPoints, nationalDayTitles, nationalOn, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
+  type DayTitle, type FieldEntry, type Level, type National, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { higherLevel, multiplier, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
@@ -57,9 +57,10 @@ export default async function RiderPage({ params, searchParams }: Props) {
       : Promise.resolve([]),
     Promise.all(detailed.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
     getTrackIds(races),
-    // Grouped by track, events USA BMX runs itself are named after the national on those dates.
-    sort === 'track' && races.some(r => r.track === 'USA BMX') ? getNationals(year).catch(() => []) : Promise.resolve([]),
+    // Events USA BMX runs itself are named after the national on those dates.
+    races.some(r => r.track === 'USA BMX') ? getNationals(year).catch(() => []) : Promise.resolve([]),
   ]);
+  const dayTitles = await nationalDayTitles(races, nationals, profile.state);
 
   // Races past the first five list without opponents, which would take a lookup per race.
   // The season picker lists the seasons the rider raced, plus this one and the one shown.
@@ -170,7 +171,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
                     </span>
                   </summary>
                   <ul className="races">
-                    {g.races.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact />)}
+                    {/* A USA BMX-run event's days read in order, Day 1 first. */}
+                    {(g.event ? [...g.races].reverse() : g.races).map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact title={raceTitle(r, dayTitles, 'day')} />)}
                   </ul>
                 </details>
               ))}
@@ -179,8 +181,8 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <>
               <ul className="races">
                 {(more ? ordered : detailed).map((r, i) => i < detailed.length
-                  ? <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} />
-                  : <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact />)}
+                  ? <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} title={raceTitle(r, dayTitles, 'full')} />
+                  : <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact title={raceTitle(r, dayTitles, 'full')} />)}
               </ul>
               {races.length > detailed.length ? (
                 <Link className="card-more" href={`/riders/${profileId}?year=${year}${sort === 'oldest' ? '&sort=oldest' : ''}${more ? '' : '&more=1'}#races`}>
@@ -269,7 +271,8 @@ function StandingItem({ s }: { s: Standing | null }) {
   );
 }
 
-function RaceItem({ race, field, ownLevel, useLevels, compact = false }: { race: Race; field: RaceField; ownLevel: string | null; useLevels: boolean; compact?: boolean }) {
+// title replaces the track name for days at a national ("Derby City Nationals Day 2"), whose track reads "USA BMX".
+function RaceItem({ race, field, ownLevel, useLevels, compact = false, title }: { race: Race; field: RaceField; ownLevel: string | null; useLevels: boolean; compact?: boolean; title?: string }) {
   const opponents = field.field?.filter(f => !f.self) ?? [];
   // The highest level in the moto sets everyone's points. Profiles only show today's level, so older seasons skip this.
   const top = useLevels ? opponents.reduce<FieldEntry | null>((t, o) => (higherLevel(o.level, t?.level) ? o : t), null) : null;
@@ -285,7 +288,7 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false }: { race:
         <span className={`finish ${race.finish === 1 ? 'win' : ''}`}>{race.finish > 0 ? ordinal(race.finish) : /bal(ance|\.)?\s*bike/i.test(race.ageGroup) ? '–' : 'DNQ'}</span>
         <div className="race-body">
           <div className="race-title">
-            <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{race.track}</Link></strong>
+            <strong><Link href={field.trackId ? `/tracks/${field.trackId}?race=${race.raceId}` : `/events/${race.raceId}`}>{title ?? race.track}</Link></strong>
             {points ? <span className="race-points">+{pts(points.district)}</span> : null}
 
           </div>
@@ -325,7 +328,7 @@ function RaceItem({ race, field, ownLevel, useLevels, compact = false }: { race:
 // within a few days of each other make one event. Its race pages only say "Standard TRIPLE" at USA BMX in
 // Desoto TX (the head office), so the event is named after the national running on those dates, or else
 // after its race name ("Gold Cup Final"), and dated.
-function byTrack(races: Race[], nationals: National[], riderState: string | null): { track: string; races: Race[] }[] {
+function byTrack(races: Race[], nationals: National[], riderState: string | null): { track: string; races: Race[]; event: boolean }[] {
   const days = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
   const groups: { key: string; races: Race[] }[] = [];
   for (const r of races) {
@@ -334,21 +337,11 @@ function byTrack(races: Race[], nationals: National[], riderState: string | null
     else groups.push({ key: r.track, races: [r] });
   }
   return groups.map(({ key, races: list }) => {
-    if (key !== 'USA BMX') return { track: key, races: list };
+    if (key !== 'USA BMX') return { track: key, races: list, event: false };
     const first = list.at(-1)!.date, last = list[0].date;
     const name = nationalOn(nationals, first, last, riderState)?.name ?? eventName(list) ?? 'USA BMX event';
-    return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list };
+    return { track: `${name} · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list, event: true };
   });
-}
-
-const CANADA = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/;
-
-// Some nationals add a practice or pre-race day before their listed dates, so any overlap counts.
-// A US and a Canadian national sometimes run the same weekend; pick the one in the rider's own country.
-function nationalOn(nationals: National[], first: string, last: string, riderState: string | null): National | undefined {
-  const on = nationals.filter(n => n.begins <= last && first <= n.ends);
-  const canadian = (s: string | null) => !!s && CANADA.test(s.toUpperCase());
-  return on.find(n => canadian(n.state) === canadian(riderState)) ?? on[0];
 }
 
 // The race name of the event's biggest day, unless it's just "Standard": "Gold Cup Final QUADRUPLE" -> "Gold Cup Final".
@@ -356,6 +349,13 @@ function eventName(list: Race[]): string | null {
   const top = [...list].sort((a, b) => multiplier(b.raceType) - multiplier(a.raceType))[0];
   const name = raceLabel(top.raceType).split(' · ')[0];
   return /^standard$/i.test(name) ? null : name;
+}
+
+// Days at USA BMX-run events: the national's day ("Derby City Nationals Day 2", or "Day 2" under its group),
+// or else the race name ("Gold Cup Final").
+function raceTitle(race: Race, titles: Map<string, DayTitle>, form: keyof DayTitle): string | undefined {
+  if (race.track !== 'USA BMX') return undefined;
+  return titles.get(race.date)?.[form] ?? eventName([race]) ?? undefined;
 }
 
 function winsText(races: Race[]): string {

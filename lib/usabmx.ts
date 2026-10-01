@@ -307,6 +307,39 @@ export async function getNationals(year: number): Promise<National[]> {
     .sort((a, b) => a.begins.localeCompare(b.begins));
 }
 
+const CANADA = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/;
+
+// The national running on some dates. Some nationals add a pre-race day before their listed dates, so a day
+// before counts. A US and a Canadian national sometimes share a weekend; pick the one in the rider's own country.
+export function nationalOn(nationals: National[], first: string, last: string, riderState: string | null): National | undefined {
+  const dayBefore = (d: string) => new Date(Date.parse(d) - 86_400_000).toISOString().slice(0, 10);
+  const on = nationals.filter(n => dayBefore(n.begins) <= last && first <= n.ends);
+  const canadian = (s: string | null) => !!s && CANADA.test(s.toUpperCase());
+  return on.find(n => canadian(n.state) === canadian(riderState)) ?? on[0];
+}
+
+// Events USA BMX runs itself show up in race history at track "USA BMX", one race a day, all named "Standard
+// TRIPLE". Each of a rider's days at a national gets a title by date: "Derby City Nationals Day 2" in full, or
+// just "Day 2" under the national's name. Days with a name of their own (the Grands: "Race Of Champions",
+// "Grand National") keep it.
+export type DayTitle = { full: string; day: string };
+export async function nationalDayTitles(races: Race[], nationals: National[], riderState: string | null): Promise<Map<string, DayTitle>> {
+  const titles = new Map<string, DayTitle>();
+  const events = new Map<number, Promise<EventInfo | null>>();
+  const dates = [...new Set(races.filter(r => r.track === 'USA BMX').map(r => r.date))];
+  await Promise.all(dates.map(async date => {
+    const n = nationalOn(nationals, date, date, riderState);
+    if (!n) return;
+    if (!events.has(n.raceId)) events.set(n.raceId, getEvent(n.raceId).catch(() => null));
+    const days = (await events.get(n.raceId))?.days ?? [];
+    const i = days.findIndex(d => d.date === date);
+    if (i < 0) return void titles.set(date, { full: n.name, day: n.name });
+    const own = days[i].name && !/^\w+day race$/i.test(days[i].name) ? days[i].name : null;
+    titles.set(date, own ? { full: own, day: own } : { full: `${n.name} Day ${i + 1}`, day: `Day ${i + 1}` });
+  }));
+  return titles;
+}
+
 export type NationalFinish = { raceDayId: number; date: string; className: string; place: number; totalRiders: number | null };
 export type RiderNational = National & { finishes: NationalFinish[] };
 
