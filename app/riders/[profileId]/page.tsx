@@ -76,28 +76,18 @@ export default async function RiderPage({ params, searchParams }: Props) {
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
   const podiums = races.filter(r => r.finish === 2 || r.finish === 3).length;
-  // Races at events USA BMX runs itself count under the national's name ("Derby City Nationals"), or else the
-  // event's race name ("Gold Cup Final", or "National" for nationals from before mid-2024, which USA BMX's
-  // event list no longer has).
-  const nationalsByYear = new Map<number, National[]>([[year, nationals]]);
-  const byEvent = (rs: Race[]) => rs.map(r => r.track !== 'USA BMX' ? r : {
-    ...r, track: nationalOn(nationalsByYear.get(Number(r.date.slice(0, 4))) ?? [], r.date, r.date, profile.state)?.name ?? eventName([r]),
-  });
-  const tracks = winsByTrack(byEvent(races));
+  // Wins by track, Top track and Worst track only count local tracks: events USA BMX runs itself (nationals,
+  // Gold Cup finals, the Grands) are left out (Josh's call, 2026-10-01).
+  const local = (rs: Race[]) => rs.filter(r => r.track !== 'USA BMX');
+  const tracks = winsByTrack(local(races));
   const top = tracks[0];
   const worst = tracks.length > 1 ? worstTrack(tracks) : undefined;
 
-  // Wins by track for this season, or all time: every season the rider raced, nationals included.
+  // Wins by track for this season, or all time: every season the rider raced.
   const allRaces = allTime
-    ? (await Promise.all(years.map(y => y === year ? races : getRaceHistory(profile.memberId, y)
-        .then(async h => [...h, ...await getNationalRaces(y, { name, state: profile.state }, h).catch(() => [] as Race[])])
-        .catch(() => [] as Race[])))).flat()
-    : races;
-  if (allTime) {
-    const eventYears = [...new Set(allRaces.filter(r => r.track === 'USA BMX').map(r => Number(r.date.slice(0, 4))))].filter(y => y !== year);
-    await Promise.all(eventYears.map(async y => nationalsByYear.set(y, await getNationals(y).catch(() => []))));
-  }
-  const winsTracks = allTime ? winsByTrack(byEvent(allRaces)) : tracks;
+    ? local((await Promise.all(years.map(y => y === year ? races : getRaceHistory(profile.memberId, y).catch(() => [] as Race[])))).flat())
+    : local(races);
+  const winsTracks = allTime ? winsByTrack(allRaces) : tracks;
   const winsTrackIds = allTime ? new Map([...await getTrackIds(allRaces).catch(() => new Map<string, number>()), ...trackIds]) : trackIds;
   const winsHref = (all: boolean) =>
     `/riders/${profileId}?year=${year}${sort === 'newest' ? '' : `&sort=${sort}`}${more ? '&more=1' : ''}${all ? '&wins=all' : ''}#wins`;
