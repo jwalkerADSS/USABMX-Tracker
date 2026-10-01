@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { Nav } from '../../nav';
 import { RankRow } from '../../rank-row';
@@ -10,6 +11,8 @@ import {
 } from '@/lib/usabmx';
 import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
+import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
+import { LapTimesView } from './lap-times';
 
 export const maxDuration = 60;
 
@@ -142,8 +145,40 @@ export default async function RiderPage({ params, searchParams }: Props) {
             race&apos;s multiplier. USA BMX doesn&apos;t publish points per race, so season totals can differ slightly.
           </p>
         </section>
+
+        <Suspense fallback={<section className="card"><h2>Lap times</h2><p className="muted">Loading lap times…</p></section>}>
+          <LapTimesSection
+            year={year}
+            races={races}
+            rider={{
+              firstName: profile.firstName, lastName: profile.lastName, state: profile.state,
+              birthYear: Number(profile.birthdate?.slice(0, 4)) || null, transponders: tracked?.transponders,
+            }}
+          />
+        </Suspense>
       </main>
     </>
+  );
+}
+
+// Streams in after the rest of the page: Sqorz can take a few seconds the first time a track is read.
+async function LapTimesSection({ rider, year, races }: { rider: RiderMatch; year: number; races: Race[] }) {
+  const data = await getLapTimes(rider, year, races).catch(() => null);
+  return (
+    <section className="card" id="lap-times">
+      <h2>{year} lap times</h2>
+      {!data ? (
+        <p className="muted">Sqorz didn&apos;t answer, so lap times can&apos;t be shown right now.</p>
+      ) : data.laps.length ? (
+        <LapTimesView data={data} name={`${rider.firstName} ${rider.lastName}`} />
+      ) : (
+        <p className="muted">No lap times for {rider.firstName} in {year}.</p>
+      )}
+      <p className="muted small">
+        Lap times come from Sqorz timing{data?.sources.length ? ` (${data.sources.join(', ')})` : ''}. Tracks only time riders who
+        carry a transponder, and nationals don&apos;t time Novice or Intermediate motos.{data?.laps.length ? ' Tap a time to compare it with other riders there.' : ''}
+      </p>
+    </section>
   );
 }
 

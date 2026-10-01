@@ -234,3 +234,35 @@ body:has(main.login) .install-app { max-width: 380px; }
 .card-slot.lifted > .card { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); outline: 2px solid var(--accent, #e63946); }
 .card-order.is-dragging .card-slot:not(.lifted) { opacity: 0.85; }
 .order-hint { text-align: center; margin: -4px 0 0; }
+
+/* Lap times */
+.lap-controls { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.lap-sort { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+.lap-sort select { width: auto; padding: 6px 10px; }
+.laps { list-style: none; margin: 0; padding: 0; }
+.laps li { border-top: 1px solid #24416e; }
+.laps li:first-child { border-top: none; }
+button.lap {
+  display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 10px 0; text-align: left;
+  background: none; border: none; border-radius: 0; color: inherit; font-weight: 400;
+}
+button.lap:active { background: var(--card-2); }
+.lap-time { min-width: 76px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 800; font-size: 1.1rem; background: var(--card-2); border-radius: 8px; padding: 6px 4px; font-variant-numeric: tabular-nums; }
+.lap-best { background: var(--win); color: #1b1b1b; border-radius: 999px; padding: 0 8px; font-size: 0.7rem; }
+.lap-body { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.lap-splits { color: #c9d6ea; font-variant-numeric: tabular-nums; }
+.lap-more { width: 100%; margin-top: 8px; }
+.lap-dialog {
+  width: calc(100% - 24px); max-width: 480px; max-height: 85vh; padding: 16px; border: 1px solid var(--card-2);
+  border-radius: var(--radius); background: var(--card); color: var(--text);
+}
+.lap-dialog::backdrop { background: rgba(4, 12, 26, 0.7); }
+.lap-close { width: 100%; margin-top: 14px; }
+.stack-sm { display: flex; flex-direction: column; gap: 6px; }
+.cmp-head { margin: 8px 0 0; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.cmp { list-style: none; margin: 0; padding: 0; }
+.cmp li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid #24416e; }
+.cmp li:first-child { border-top: none; }
+.cmp li.ours { color: var(--win); font-weight: 700; }
+.cmp-name { display: flex; flex-direction: column; min-width: 0; }
+.cmp-time { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
