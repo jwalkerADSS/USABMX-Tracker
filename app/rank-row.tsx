@@ -1,10 +1,7 @@
 import Link from 'next/link';
-import { levelOfPointsType, type Level, type Points, type PointsEntry, type Standing, type Tables } from '@/lib/usabmx';
+import { REGION_SHORT, levelOfPointsType, type Level, type Points, type PointsEntry, type Standing, type Tables } from '@/lib/usabmx';
 import { num, pts } from '@/lib/format';
 
-const REGION_SHORT: Record<string, string> = {
-  'North West': 'NW', 'South West': 'SW', 'North Central': 'NC', 'South Central': 'SC', 'North East': 'NE', 'South East': 'SE',
-};
 // "State (NV)" -> "NV", "Gold Cup (SW)" -> "SW"
 const inBrackets = (type: string) => type.match(/\(([^)]+)\)/)?.[1] ?? null;
 

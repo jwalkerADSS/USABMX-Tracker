@@ -6,9 +6,10 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getNationalRaces, getNationals, getPoints, nationalDayTitles, nationalOn, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
+  LEVEL_LABELS, getGoldCupFinals, getNationalRaces, getNationals, getPoints, nationalDayTitles, nationalOn, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
   type DayTitle, type FieldEntry, type Level, type National, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
+import { currentPlates } from '@/lib/plates';
 import { higherLevel, multiplier, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
@@ -65,6 +66,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
     races.some(r => r.track === 'USA BMX') ? getNationals(year).catch(() => []) : Promise.resolve([]),
   ]);
   const dayTitles = await nationalDayTitles(races, nationals, profile.state);
+  const plates = currentPlates(points, await getGoldCupFinals(currentSeason()).catch(() => []), currentSeason());
 
   // Races past the first five list without opponents, which would take a lookup per race.
   // The season picker lists the seasons the rider raced, plus this one and the one shown.
@@ -107,11 +109,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             {[profile.homeTrack, [profile.city, profile.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
           </p>
           <RankRow points={points} profileId={tracked?.profileId} tables={tracked?.tables} goldCup={tracked?.tables.goldCup ? standings.find(s => s?.level === 'goldCup') : null} />
-          {points.plates.length ? (
-            <p className="muted small">
-              Plates: {points.plates.map(p => `${p.plateType} #${p.value} (${p.season})`).join(', ')}
-            </p>
-          ) : null}
+          {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
         </Fold>
 
         <Fold id="record" title={`${year} record`}>
