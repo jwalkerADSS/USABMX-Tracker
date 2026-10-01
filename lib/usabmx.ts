@@ -140,6 +140,18 @@ export function getRiderAge(profile: Profile, season: number): RiderAge {
   return { age: fromBirth, label: fromBirth != null ? String(fromBirth) : null, birthYear: fromBirth != null ? birthYear : null };
 }
 
+// Seasons with at least one race in USA BMX's race history, newest first.
+export async function racedSeasons(memberId: number, from: number, to: number): Promise<number[]> {
+  type Res = { total_records?: number };
+  const years = Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => to - i);
+  const raced = await Promise.all(years.map(async y => {
+    const counts = await Promise.all((['class', 'cruiser'] as const).map(bike =>
+      api<Res>(`dashboard/race-history?memberId=${memberId}&year=${y}&bikeType=${bike}&page=1&limit=1`).then(r => r.total_records ?? 0, () => 0)));
+    return counts.some(n => n > 0);
+  }));
+  return years.filter((_, i) => raced[i]);
+}
+
 // ---- Events, race days and results ------------------------------------------
 
 export type RaceDay = { raceDayId: number; date: string; name: string };

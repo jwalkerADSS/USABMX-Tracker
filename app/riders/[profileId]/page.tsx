@@ -6,17 +6,18 @@ import { RankRow } from '../../rank-row';
 import { currentSeason, findTracked, getRiderTables } from '@/lib/riders';
 import { formatDate, num, ordinal, pts } from '@/lib/format';
 import {
-  LEVEL_LABELS, getPoints, getProfile, getRaceField, getRaceHistory, getRiderAge, getStanding, getTrackIds,
+  LEVEL_LABELS, getPoints, getProfile, getRaceField, racedSeasons, getRaceHistory, getRiderAge, getStanding, getTrackIds,
   type FieldEntry, type Level, type Race, type RaceField, type Standing,
 } from '@/lib/usabmx';
 import { higherLevel, raceLabel, racePoints, raisedRaces } from '@/lib/points';
 import { winsByTrack, worstTrack, type TrackRecord } from '@/lib/records';
 import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
+import { RaceControls, type RaceSort } from './race-controls';
 
 export const maxDuration = 60;
 
-type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string }> };
+type Props = { params: Promise<{ profileId: string }>; searchParams: Promise<{ year?: string; sort?: string; more?: string }> };
 
 export async function generateMetadata({ params }: Props) {
   const profile = await getProfile(Number((await params).profileId)).catch(() => null);
@@ -25,7 +26,10 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function RiderPage({ params, searchParams }: Props) {
   const profileId = Number((await params).profileId);
-  const year = Number((await searchParams).year) || currentSeason();
+  const query = await searchParams;
+  const year = Number(query.year) || currentSeason();
+  const sort: RaceSort = query.sort === 'oldest' || query.sort === 'track' ? query.sort : 'newest';
+  const more = query.more === '1';
   if (!Number.isInteger(profileId) || profileId <= 0) notFound();
   // Some riders have an older duplicate profile that USA BMX only shows to the account owner.
   const alias = findTracked(profileId);
@@ -38,7 +42,9 @@ export default async function RiderPage({ params, searchParams }: Props) {
   const [points, races] = await Promise.all([getPoints(profileId), getRaceHistory(profile.memberId, year)]);
   const riderAge = getRiderAge(profile, currentSeason());
   const age = riderAge.label;
-  const last5 = races.slice(0, 5);
+  // Newest or oldest first; the first five shown also get who they raced against.
+  const ordered = sort === 'oldest' ? [...races].reverse() : races;
+  const detailed = sort === 'track' ? [] : ordered.slice(0, 5);
   // Only this season's races can be compared with riders' current levels.
   const thisSeason = year === currentSeason();
   const raised = thisSeason ? raisedRaces(races, profile.level) : new Set<Race>();
@@ -49,9 +55,16 @@ export default async function RiderPage({ params, searchParams }: Props) {
             memberId: profile.memberId, name, profileIds: [tracked.profileId, ...(tracked.altProfileIds ?? [])],
           }, points).catch(() => null)))
       : Promise.resolve([]),
-    Promise.all(last5.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
+    Promise.all(detailed.map(r => getRaceField(r, profile.memberId).catch((): RaceField => ({ trackId: null, moto: null, field: null })))),
     getTrackIds(races),
   ]);
+
+  // Races past the first five list without opponents, which would take a lookup per race.
+  // The season picker lists the seasons the rider raced, plus this one and the one shown.
+  const first = Math.max(2017, Number(profile.memberSince?.slice(0, 4)) || 2017);
+  const raced = await racedSeasons(profile.memberId, first, currentSeason()).catch(() => [] as number[]);
+  const years = [...new Set([currentSeason(), year, ...raced])].sort((a, b) => b - a);
+  const noField = (r: Race): RaceField => ({ trackId: trackIds.get(r.track) ?? null, moto: null, field: null });
 
   // Wins, podiums (2nd and 3rd) and other finishes add up to the race count.
   const wins = races.filter(r => r.finish === 1).length;
@@ -131,17 +144,48 @@ export default async function RiderPage({ params, searchParams }: Props) {
           </section>
         ) : null}
 
-        <section className="card">
-          <h2>Last {last5.length} races</h2>
-          {last5.length ? (
-            <ul className="races">
-              {last5.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} />)}
-            </ul>
-          ) : (
+        <section className="card" id="races">
+          <h2>
+            {sort === 'track' ? `${year} races by track` : more ? `All ${races.length} races in ${year}`
+              : `${sort === 'oldest' ? 'First' : 'Last'} ${detailed.length} ${detailed.length === 1 ? 'race' : 'races'}`}
+          </h2>
+          <RaceControls profileId={profileId} year={year} years={years} sort={sort} />
+          {!races.length ? (
             <p className="muted">
               No races in {year} yet.{' '}
-              {thisSeason ? <Link href={`/riders/${profileId}?year=${year - 1}`}>See {year - 1} races</Link> : null}
+              {thisSeason ? <Link href={`/riders/${profileId}?year=${year - 1}#races`}>See {year - 1} races</Link> : null}
             </p>
+          ) : sort === 'track' ? (
+            <div className="lap-groups">
+              {byTrack(races).map(g => (
+                <details key={g.track} className="lap-group race-group">
+                  <summary>
+                    <span className="lap-group-head">
+                      <strong>{g.track}</strong>
+                      <span className="muted small">
+                        {g.races.length} {g.races.length === 1 ? 'race' : 'races'} · {winsText(g.races)} · last {formatDate(g.races[0].date)}
+                      </span>
+                    </span>
+                  </summary>
+                  <ul className="races">
+                    {g.races.map((r, i) => <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact />)}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          ) : (
+            <>
+              <ul className="races">
+                {(more ? ordered : detailed).map((r, i) => i < detailed.length
+                  ? <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={fields[i]} ownLevel={raised.has(r) ? profile.level : null} useLevels={thisSeason} />
+                  : <RaceItem key={`${r.raceId}-${r.date}-${i}`} race={r} field={noField(r)} ownLevel={raised.has(r) ? profile.level : null} useLevels={false} compact />)}
+              </ul>
+              {races.length > detailed.length ? (
+                <Link className="card-more" href={`/riders/${profileId}?year=${year}${sort === 'oldest' ? '&sort=oldest' : ''}${more ? '' : '&more=1'}#races`}>
+                  {more ? 'Show fewer' : `Show all ${races.length} races ›`}
+                </Link>
+              ) : null}
+            </>
           )}
           <p className="muted small">
             Points are worked out from the USA BMX rule book: finish points plus one point per rider in the moto, times the
@@ -223,7 +267,7 @@ function StandingItem({ s }: { s: Standing | null }) {
   );
 }
 
-function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: RaceField; ownLevel: string | null; useLevels: boolean }) {
+function RaceItem({ race, field, ownLevel, useLevels, compact = false }: { race: Race; field: RaceField; ownLevel: string | null; useLevels: boolean; compact?: boolean }) {
   const opponents = field.field?.filter(f => !f.self) ?? [];
   // The highest level in the moto sets everyone's points. Profiles only show today's level, so older seasons skip this.
   const top = useLevels ? opponents.reduce<FieldEntry | null>((t, o) => (higherLevel(o.level, t?.level) ? o : t), null) : null;
@@ -267,9 +311,32 @@ function RaceItem({ race, field, ownLevel, useLevels }: { race: Race; field: Rac
             </span>
           ))}
         </p>
-      ) : field.field === null ? (
+      ) : field.field === null && !compact ? (
         <p className="muted small">Opponents not available for this race.</p>
       ) : null}
     </li>
   );
+}
+
+// One group per track, most recent first. Events USA BMX runs itself (nationals, Gold Cup finals) list
+// "USA BMX" as the track and each day as its own race, so their days are grouped by date instead: days
+// within a few days of each other make one event, named by its dates.
+function byTrack(races: Race[]): { track: string; races: Race[] }[] {
+  const days = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
+  const groups: { key: string; races: Race[] }[] = [];
+  for (const r of races) {
+    const g = groups.find(x => x.key === r.track && (r.track !== 'USA BMX' || days(x.races.at(-1)!.date, r.date) <= 3));
+    if (g) g.races.push(r);
+    else groups.push({ key: r.track, races: [r] });
+  }
+  return groups.map(({ key, races: list }) => {
+    if (key !== 'USA BMX') return { track: key, races: list };
+    const first = list.at(-1)!.date, last = list[0].date;
+    return { track: `USA BMX event · ${formatDate(first)}${first === last ? '' : `–${formatDate(last)}`}`, races: list };
+  });
+}
+
+function winsText(races: Race[]): string {
+  const n = races.filter(r => r.finish === 1).length;
+  return `${n} ${n === 1 ? 'win' : 'wins'}`;
 }
