@@ -461,6 +461,8 @@ type StandingRow = {
   place: number; points: number; bmxMemberId?: number;
   rider: { profile_id: number | null; first_name: string; last_name: string };
   age_group?: string;
+  // District standings only: the rider's level and USA BMX's official count of class wins toward moving up.
+  skill?: string; wins?: number; last_win?: string | null;
 };
 
 async function standingsPage(url: string, page: number): Promise<{ rows: StandingRow[]; lastPage: number }> {
@@ -486,6 +488,10 @@ export type Standing = {
   place?: number;
   points?: number;
   gaps: Gap[]; // next place up, #10 and #1, whichever are ahead of the rider
+  // District standings only (see StandingRow).
+  skill?: string;
+  wins?: number;
+  lastWin?: string | null;
 };
 
 export type RiderKey = { memberId: number; profileIds: number[]; name: string };
@@ -516,7 +522,10 @@ export async function getStanding(level: Level, tables: Tables, year: number, ri
     const row = rows.find(r => r.place === target);
     if (row) gaps.push({ place: target, name: titleCase(`${row.rider.first_name} ${row.rider.last_name}`), points: row.points, pointsBehind: row.points - me.points });
   }
-  return { ...base, found: true, place: me.place, points: me.points, gaps };
+  return {
+    ...base, found: true, place: me.place, points: me.points, gaps,
+    ...(level === 'district' ? { skill: me.skill, wins: me.wins, lastWin: me.last_win?.slice(0, 10) ?? null } : {}),
+  };
 }
 
 // ---- Full standings tables ------------------------------------------------------

@@ -69,7 +69,15 @@ export default async function RiderPage({ params, searchParams }: Props) {
   ]);
   const dayTitles = await nationalDayTitles(races, nationals, profile.state);
   const plates = currentPlates(points, await getGoldCupFinals(currentSeason()).catch(() => []), currentSeason());
-  const promotion = await getPromotion(profile, tracked?.tables, currentSeason()).catch(() => null);
+  // Novice and Inter riders: USA BMX's count of wins toward moving up, from this season's district standings.
+  const district = tracked?.tables.district && /^(Novice|Inter)/.test(profile.level ?? '')
+    ? thisSeason
+      ? standings.find(s => s?.level === 'district')
+      : await getStanding('district', tracked.tables, currentSeason(), {
+          memberId: profile.memberId, name, profileIds: [tracked.profileId, ...(tracked.altProfileIds ?? [])],
+        }, points).catch(() => null)
+    : null;
+  const promotion = getPromotion(district, tracked?.tables);
 
   // Races past the first five list without opponents, which would take a lookup per race.
   // The season picker lists the seasons the rider raced, plus this one and the one shown.
@@ -120,7 +128,6 @@ export default async function RiderPage({ params, searchParams }: Props) {
           </p>
           <RankRow points={points} profileId={tracked?.profileId} tables={tracked?.tables} goldCup={tracked?.tables.goldCup ? standings.find(s => s?.level === 'goldCup') : null} />
           {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
-          <PromotionLine promotion={promotion} />
         </Fold>
 
         <Fold id="record" title={`${recordYear} record`}>
@@ -135,6 +142,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <Stat label="Podiums (2nd–3rd)" value={podiums} />
             <Stat label="Other finishes" value={recordRaces.length - wins - podiums} />
           </div>
+          <PromotionLine promotion={promotion} />
         </Fold>
 
         {tracks.length > 1 || years.length > 1 ? (

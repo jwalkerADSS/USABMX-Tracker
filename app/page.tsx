@@ -26,7 +26,11 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
   const wins = races.filter(r => r.finish === 1).length;
   const last = races[0];
   const plates = currentPlates(points, await getGoldCupFinals(year).catch(() => []), year);
-  const promotion = profile ? await getPromotion(profile, tables, year).catch(() => null) : null;
+  // Novice and Inter riders: USA BMX's count of wins toward moving up, from the district standings.
+  const district = tables?.district && /^(Novice|Inter)/.test(profile?.level ?? '')
+    ? await getStanding('district', tables, year, { memberId, name, profileIds: [profileId, ...(altProfileIds ?? [])] }, points).catch(() => null)
+    : null;
+  const promotion = getPromotion(district, tables);
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
   // A day at a national lists "USA BMX" as its track; name it after the national instead.
   const lastTitle = last?.track === 'USA BMX'
@@ -44,11 +48,11 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
       {profile?.homeTrack ? <p className="muted">{profile.homeTrack}</p> : null}
       <RankRow points={points} profileId={profileId} tables={tables} goldCup={goldCup} />
       {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
-      <PromotionLine promotion={promotion} />
       <p className="record">
         {year}: <strong>{wins}</strong> wins in <strong>{races.length}</strong> races
         {races.length ? ` (${Math.round((wins / races.length) * 100)}%)` : ''}
       </p>
+      <PromotionLine promotion={promotion} />
       {last ? (
         <p className="muted small">
           Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{lastTitle ?? last.track}</Link> : lastTitle ?? last.track}: {last.finish > 0 ? `${ordinal(last.finish)} of ${last.riders}` : `DNQ (did not qualify), ${last.riders} riders`}
