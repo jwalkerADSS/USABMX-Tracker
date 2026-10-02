@@ -16,6 +16,8 @@ import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
 import { LinkSelect, RaceControls, type RaceSort } from './race-controls';
 import { Fold } from '../../fold';
+import { PromotionLine } from '../../promotion-line';
+import { getPromotion } from '@/lib/promotion';
 
 export const maxDuration = 60;
 
@@ -67,6 +69,15 @@ export default async function RiderPage({ params, searchParams }: Props) {
   ]);
   const dayTitles = await nationalDayTitles(races, nationals, profile.state);
   const plates = currentPlates(points, await getGoldCupFinals(currentSeason()).catch(() => []), currentSeason());
+  // Novice and Inter riders: USA BMX's count of wins toward moving up, from this season's district standings.
+  const district = tracked?.tables.district && /^(Novice|Inter)/.test(profile.level ?? '')
+    ? thisSeason
+      ? standings.find(s => s?.level === 'district')
+      : await getStanding('district', tracked.tables, currentSeason(), {
+          memberId: profile.memberId, name, profileIds: [tracked.profileId, ...(tracked.altProfileIds ?? [])],
+        }, points).catch(() => null)
+    : null;
+  const promotion = getPromotion(district, tracked?.tables);
 
   // Races past the first five list without opponents, which would take a lookup per race.
   // The season picker lists the seasons the rider raced, plus this one and the one shown.
@@ -131,6 +142,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
             <Stat label="Podiums (2nd–3rd)" value={podiums} />
             <Stat label="Other finishes" value={recordRaces.length - wins - podiums} />
           </div>
+          <PromotionLine promotion={promotion} />
         </Fold>
 
         {tracks.length > 1 || years.length > 1 ? (

@@ -8,6 +8,8 @@ import { searchRiders } from '@/lib/search';
 import { getEvent, getGoldCupFinals, getNationals, getPoints, getProfile, nationalDayTitles, getRaceHistory, getRiderAge, getStanding, type Tables } from '@/lib/usabmx';
 import { RankRow } from './rank-row';
 import { currentPlates } from '@/lib/plates';
+import { getPromotion } from '@/lib/promotion';
+import { PromotionLine } from './promotion-line';
 import { CardOrder } from './card-order';
 import { Tour } from './tour';
 import { formatDate, ordinal } from '@/lib/format';
@@ -24,6 +26,11 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
   const wins = races.filter(r => r.finish === 1).length;
   const last = races[0];
   const plates = currentPlates(points, await getGoldCupFinals(year).catch(() => []), year);
+  // Novice and Inter riders: USA BMX's count of wins toward moving up, from the district standings.
+  const district = tables?.district && /^(Novice|Inter)/.test(profile?.level ?? '')
+    ? await getStanding('district', tables, year, { memberId, name, profileIds: [profileId, ...(altProfileIds ?? [])] }, points).catch(() => null)
+    : null;
+  const promotion = getPromotion(district, tables);
   const lastTrackId = last ? await getEvent(last.raceId).then(e => e.trackId, () => null) : null;
   // A day at a national lists "USA BMX" as its track; name it after the national instead.
   const lastTitle = last?.track === 'USA BMX'
@@ -45,6 +52,7 @@ async function RiderCard({ profileId, altProfileIds, memberId, name, tables }: {
         {year}: <strong>{wins}</strong> wins in <strong>{races.length}</strong> races
         {races.length ? ` (${Math.round((wins / races.length) * 100)}%)` : ''}
       </p>
+      <PromotionLine promotion={promotion} />
       {last ? (
         <p className="muted small">
           Last race {formatDate(last.date)} at {lastTrackId ? <Link href={`/tracks/${lastTrackId}?race=${last.raceId}`}>{lastTitle ?? last.track}</Link> : lastTitle ?? last.track}: {last.finish > 0 ? `${ordinal(last.finish)} of ${last.riders}` : `DNQ (did not qualify), ${last.riders} riders`}
