@@ -10,7 +10,7 @@ export default function SignUpPage() {
   const open = storeReady();
   return (
     <main className="login">
-      <h1>BMX Tracker</h1>
+      <h1><img src="/logo.webp" alt="BMX Tracker" width={220} height={220} className="login-logo" /></h1>
       {open ? (
         <SignUpForm />
       ) : (

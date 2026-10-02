@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { error, next } = await searchParams;
   return (
     <main className="login">
-      <h1>BMX Tracker</h1>
+      <h1><img src="/logo.webp" alt="BMX Tracker" width={220} height={220} className="login-logo" /></h1>
       <form method="post" action="/api/login" className="card stack">
         <h2>Sign in</h2>
         <label>

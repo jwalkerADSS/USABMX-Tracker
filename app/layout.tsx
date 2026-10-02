@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   description: 'USA BMX points, standings and race results for our riders.',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'BMX Tracker', statusBarStyle: 'black-translucent' },
-  icons: { icon: '/icons/icon-192.png', apple: '/apple-touch-icon.png' },
+  icons: {
+    icon: [{ url: '/icons/icon-32.png', sizes: '32x32' }, { url: '/icons/icon-192.png', sizes: '192x192' }],
+    apple: '/apple-touch-icon.png',
+  },
   robots: { index: false, follow: false },
 };
 

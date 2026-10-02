@@ -9,7 +9,7 @@ export async function Nav({ back, title }: { back?: boolean; title?: ReactNode }
   const account = await currentAccount();
   return (
     <header className={title ? 'nav with-title' : 'nav'}>
-      {back ? <Link href="/">‹ Riders</Link> : <span className="brand">BMX Tracker <TourHelp /></span>}
+      {back ? <Link href="/">‹ Riders</Link> : <span className="brand"><img src="/logo-small.webp" alt="" width={32} height={32} className="brand-logo" />BMX Tracker <TourHelp /></span>}
       <nav>
         {isAdmin(account) ? <Link href="/admin">Admin</Link> : null}
         {account ? <Link href="/my-riders">My riders</Link> : null}
