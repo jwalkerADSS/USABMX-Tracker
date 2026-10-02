@@ -16,6 +16,8 @@ import { getLapTimes, type RiderMatch } from '@/lib/sqorz';
 import { LapTimesView } from './lap-times';
 import { LinkSelect, RaceControls, type RaceSort } from './race-controls';
 import { Fold } from '../../fold';
+import { PromotionLine } from '../../promotion-line';
+import { getPromotion } from '@/lib/promotion';
 
 export const maxDuration = 60;
 
@@ -67,6 +69,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
   ]);
   const dayTitles = await nationalDayTitles(races, nationals, profile.state);
   const plates = currentPlates(points, await getGoldCupFinals(currentSeason()).catch(() => []), currentSeason());
+  const promotion = await getPromotion(profile, tracked?.tables, currentSeason()).catch(() => null);
 
   // Races past the first five list without opponents, which would take a lookup per race.
   // The season picker lists the seasons the rider raced, plus this one and the one shown.
@@ -117,6 +120,7 @@ export default async function RiderPage({ params, searchParams }: Props) {
           </p>
           <RankRow points={points} profileId={tracked?.profileId} tables={tracked?.tables} goldCup={tracked?.tables.goldCup ? standings.find(s => s?.level === 'goldCup') : null} />
           {plates.length ? <p className="muted small">Current Plates: {plates.join(', ')}</p> : null}
+          <PromotionLine promotion={promotion} />
         </Fold>
 
         <Fold id="record" title={`${recordYear} record`}>
