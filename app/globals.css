@@ -156,6 +156,8 @@ select {
 .standings-table td:first-child { width: 44px; color: var(--muted); }
 .standings-table td:last-child, .standings-table th:last-child { text-align: right; white-space: nowrap; }
 .standings-table tr.ours td { color: var(--win); font-weight: 700; }
+.standings-table .count { text-align: right; white-space: nowrap; padding-left: 4px; }
+.standings-table th.count { text-transform: none; }
 #me { scroll-margin-top: 80px; }
 .rider-card h2 a { text-decoration: none; }
 .card-more { display: inline-block; margin-top: 8px; font-weight: 600; color: var(--muted); text-decoration: none; }
