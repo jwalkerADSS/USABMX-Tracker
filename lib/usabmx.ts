@@ -463,6 +463,9 @@ type StandingRow = {
   age_group?: string;
   // District standings only: the rider's level and USA BMX's official count of class wins toward moving up.
   skill?: string; wins?: number; last_win?: string | null;
+  // Gold Cup standings: Gold Cup qualifiers raced. State standings: State (or Provincial) Championship Races
+  // and single point local races.
+  races?: string; state_races?: string; local_races?: string;
 };
 
 async function standingsPage(url: string, page: number): Promise<{ rows: StandingRow[]; lastPage: number }> {
@@ -530,7 +533,21 @@ export async function getStanding(level: Level, tables: Tables, year: number, ri
 
 // ---- Full standings tables ------------------------------------------------------
 
-export type TableRow = { place: number; name: string; profileId: number | null; memberId: number | null; ageGroup: string | null; points: number };
+// counts: races that count toward the table, where USA BMX lists them (Gold Cup: GCQs; State: SCR/PCRs and singles).
+export type TableCount = { label: string; value: number };
+export type TableRow = {
+  place: number; name: string; profileId: number | null; memberId: number | null; ageGroup: string | null; points: number;
+  counts: TableCount[];
+};
+
+function rowCounts(level: Level, r: StandingRow): TableCount[] {
+  const n = (v: string | undefined) => Number(v) || 0;
+  if (level === 'goldCup' && r.races != null) return [{ label: 'GCQs', value: n(r.races) }];
+  if (level === 'state' && (r.state_races != null || r.local_races != null)) {
+    return [{ label: 'SCR/PCRs', value: n(r.state_races) }, { label: 'Singles', value: n(r.local_races) }];
+  }
+  return [];
+}
 export type StandingsTable = { level: Level; title: string; url: string; page: number; lastPage: number; rows: TableRow[] };
 
 export function tableTitle(level: Level, t: Tables): string | null {
@@ -552,7 +569,7 @@ export async function getStandingsTable(level: Level, tables: Tables, year: numb
     level, title, url: BASE + path + (page > 1 ? `&page=${page}` : ''), page, lastPage: Math.max(lastPage, 1),
     rows: rows.map(r => ({
       place: r.place, name: titleCase(`${r.rider.first_name} ${r.rider.last_name}`), profileId: r.rider.profile_id,
-      memberId: r.bmxMemberId ?? null, ageGroup: r.age_group ?? null, points: r.points,
+      memberId: r.bmxMemberId ?? null, ageGroup: r.age_group ?? null, points: r.points, counts: rowCounts(level, r),
     })),
   };
 }

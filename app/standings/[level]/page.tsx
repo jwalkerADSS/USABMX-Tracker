@@ -49,6 +49,9 @@ export default async function StandingsPage({ params, searchParams }: Props) {
   const showNationals = level === 'nag' || level === 'national';
   const me = table.rows.find(isMe);
   const href = (p: number) => `/standings/${level}?rider=${tracked.profileId}&page=${p}`;
+  // Gold Cup lists GCQs raced; State lists SCR/PCRs and singles. Column names come from the first row that has them.
+  const countLabels = table.rows.find(r => r.counts.length)?.counts.map(c => c.label) ?? [];
+  const countText = (r: { counts: { label: string; value: number }[] }) => r.counts.map(c => `${num(c.value)} ${c.label}`).join(', ');
 
   return (
     <>
@@ -58,7 +61,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
           <h1>{table.title}</h1>
           <p className="muted">
             {year} standings
-            {me ? ` · ${tracked.name.split(' ')[0]} is ${me.place ? `#${num(me.place)}` : 'unranked'} with ${num(me.points)} pts` : ` · ${tracked.name} ${pageParam ? "isn't on this page" : "isn't ranked here yet"}`}
+            {me ? ` · ${tracked.name.split(' ')[0]} is ${me.place ? `#${num(me.place)}` : 'unranked'} with ${num(me.points)} pts${me.counts.length ? ` (${countText(me)})` : ''}` : ` · ${tracked.name} ${pageParam ? "isn't on this page" : "isn't ranked here yet"}`}
           </p>
           <Pager page={table.page} lastPage={table.lastPage} href={href} />
           {showNationals ? <p className="small"><a href="#nationals">{tracked.name.split(' ')[0]}&apos;s {year} nationals ↓</a></p> : null}
@@ -67,7 +70,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
           {table.rows.length ? (
             <table className="standings-table">
               <thead>
-                <tr><th>#</th><th>Rider</th><th>Points</th></tr>
+                <tr><th>#</th><th>Rider</th>{countLabels.map(l => <th key={l} className="count">{l}</th>)}<th>Points</th></tr>
               </thead>
               <tbody>
                 {table.rows.map((r, i) => (
@@ -77,6 +80,7 @@ export default async function StandingsPage({ params, searchParams }: Props) {
                       {r.profileId ? <Link href={`/riders/${r.profileId}`}>{r.name}</Link> : r.name}
                       {r.ageGroup ? <span className="muted small"> · {r.ageGroup}</span> : null}
                     </td>
+                    {countLabels.map((l, j) => <td key={l} className="count">{r.counts[j] ? num(r.counts[j].value) : '–'}</td>)}
                     <td>{num(r.points)}</td>
                   </tr>
                 ))}
